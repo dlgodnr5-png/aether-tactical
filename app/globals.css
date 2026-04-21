@@ -1,26 +1,243 @@
 @import "tailwindcss";
 
+@theme {
+  --color-primary: #00dbe7;
+  --color-background: #0d1228;
+  --color-surface: #0d1228;
+  --color-surface-container: #191e35;
+  --color-surface-container-low: #151a31;
+  --color-surface-container-high: #242940;
+  --color-surface-container-highest: #2f334b;
+  --color-surface-container-lowest: #080d22;
+  --color-on-surface: #dde1ff;
+  --color-on-surface-variant: #c7c5ce;
+  --color-on-primary: #00363a;
+  --color-on-primary-container: #008b92;
+  --color-tertiary: #ffb77f;
+  --color-outline-variant: #46464d;
+  --color-outline: #919097;
+  --color-error-container: #93000a;
+  --color-on-error: #690005;
+
+  --font-display: "Orbitron", "Gmarket Sans TTF", "Space Grotesk", sans-serif;
+  --font-body-ko: "Pretendard Variable", "Pretendard", "Inter", system-ui, sans-serif;
+  --font-headline: var(--font-display);
+  --font-label: var(--font-display);
+  --font-body: var(--font-body-ko);
+
+  --radius: 2px;
+  --radius-lg: 4px;
+  --radius-xl: 8px;
+  --radius-full: 12px;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background-color: var(--color-background);
+  color: var(--color-on-surface);
+  font-family: var(--font-body);
+  min-height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-headline {
+  font-family: var(--font-headline);
+}
+
+.font-label {
+  font-family: var(--font-label);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.tactical-grid {
+  background-image: radial-gradient(rgba(0, 219, 231, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+}
+
+.text-glow {
+  text-shadow: 0 0 10px #00dbe7;
+}
+
+.bg-surface-glow {
+  background-image: radial-gradient(circle, rgba(0, 219, 231, 0.35) 0%, transparent 70%);
+  opacity: 0.1;
+}
+
+.material-symbols-outlined {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Leaflet container bg */
+.leaflet-container {
+  background: #080d22 !important;
+}
+
+/* HUD scanline animation */
+@keyframes scanline {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+.animate-scanline {
+  animation: scanline 3s linear infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.6s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+}
+
+/* Hide default scrollbars on targeted panels */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ─────────── Phase A: Premium depth utilities ─────────── */
+
+.glass {
+  background: linear-gradient(
+    180deg,
+    rgba(25, 30, 53, 0.55) 0%,
+    rgba(13, 18, 40, 0.75) 100%
+  );
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow:
+    inset 0 1px 0 0 rgba(0, 219, 231, 0.22),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.5),
+    0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(0, 219, 231, 0.18);
+}
+
+.bevel {
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
+    inset 0 -2px 6px -2px rgba(0, 0, 0, 0.6);
+}
+
+.noise {
+  position: relative;
+  isolation: isolate;
+}
+.noise::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.7'/></svg>");
+  background-size: 140px 140px;
+  z-index: 1;
+}
+
+.radial-vignette {
+  background:
+    radial-gradient(
+      ellipse 70% 60% at 50% 45%,
+      transparent 0%,
+      rgba(0, 0, 0, 0.45) 100%
+    );
+}
+
+@keyframes holo-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.holo-shimmer {
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(0, 219, 231, 0.12) 45%,
+    rgba(255, 183, 127, 0.08) 55%,
+    transparent 75%
+  );
+  background-size: 220% 100%;
+  animation: holo-shimmer 9s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes radar-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.radar-sweep {
+  background: conic-gradient(
+    from 0deg,
+    rgba(0, 219, 231, 0.35) 0deg,
+    rgba(0, 219, 231, 0.08) 20deg,
+    transparent 60deg,
+    transparent 360deg
+  );
+  animation: radar-sweep 8s linear infinite;
+}
+
+@keyframes dust-drift {
+  0% { transform: translate3d(0, 0, 0); opacity: 0.3; }
+  50% { opacity: 0.6; }
+  100% { transform: translate3d(-120px, -80px, 0); opacity: 0; }
+}
+
+@keyframes fadeInScale {
+  0% { transform: scale(0.88); opacity: 0; filter: blur(6px); }
+  100% { transform: scale(1); opacity: 1; filter: blur(0); }
+}
+
+@keyframes fade-up {
+  0% { transform: translateY(8px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-scanline,
+  .animate-pulse-ring,
+  .radar-sweep,
+  .holo-shimmer {
+    animation: none !important;
+  }
 }
