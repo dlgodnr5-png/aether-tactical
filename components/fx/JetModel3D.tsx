@@ -5,6 +5,8 @@ import { useFrame } from "@react-three/fiber";
 import { Trail } from "@react-three/drei";
 import * as THREE from "three";
 
+type Variant = "fighter" | "bomber" | "interceptor" | "multirole" | "support";
+
 interface Props {
   throttle?: number;
   bank?: number;
@@ -12,6 +14,8 @@ interface Props {
   contrails?: boolean;
   /** Gear deployed (on takeoff/landing). Default false = retracted */
   gearDown?: boolean;
+  /** Visual variant — controls part visibility / tint (not geometry) */
+  variant?: Variant;
 }
 
 /**
@@ -24,7 +28,19 @@ export default function JetModel3D({
   bank = 0,
   contrails = true,
   gearDown = false,
+  variant = "fighter",
 }: Props) {
+  const hideTails = variant === "bomber"; // flying wing
+  const hideCanopyBubble = false; // keep canopy for all for now
+  const bodyTint =
+    variant === "bomber" ? "#1a2040" :
+    variant === "interceptor" ? "#2a1040" :
+    variant === "support" ? "#2a2a18" :
+    "#2a3654";
+  const bodyEmissive =
+    variant === "bomber" ? "#0a0f2a" :
+    variant === "interceptor" ? "#1a0828" :
+    "#0a1f3a";
   const rootRef = useRef<THREE.Group>(null!);
   const leftWingTipRef = useRef<THREE.Mesh>(null!);
   const rightWingTipRef = useRef<THREE.Mesh>(null!);
@@ -112,10 +128,10 @@ export default function JetModel3D({
       <mesh castShadow receiveShadow>
         <latheGeometry args={[fuselagePoints, 20]} />
         <meshStandardMaterial
-          color="#2a3654"
+          color={bodyTint}
           metalness={0.82}
           roughness={0.28}
-          emissive="#0a1f3a"
+          emissive={bodyEmissive}
           emissiveIntensity={0.2}
         />
       </mesh>
@@ -218,12 +234,12 @@ export default function JetModel3D({
       {/* Left wing */}
       <mesh position={[0, -0.08, -0.1]} castShadow receiveShadow>
         <extrudeGeometry args={[wingShape, wingSettings]} />
-        <meshStandardMaterial color="#2a3654" metalness={0.78} roughness={0.32} />
+        <meshStandardMaterial color={bodyTint} metalness={0.78} roughness={0.32} />
       </mesh>
       {/* Right wing (mirrored via negative scale) */}
       <mesh position={[0, -0.08, -0.1]} scale={[-1, 1, 1]} castShadow receiveShadow>
         <extrudeGeometry args={[wingShape, wingSettings]} />
-        <meshStandardMaterial color="#2a3654" metalness={0.78} roughness={0.32} />
+        <meshStandardMaterial color={bodyTint} metalness={0.78} roughness={0.32} />
       </mesh>
 
       {/* Wing leading-edge cyan glow (HUD aesthetic) */}
@@ -297,26 +313,38 @@ export default function JetModel3D({
         </group>
       ))}
 
-      {/* ============ V-TAILS ============ */}
-      <group position={[0, 0.25, -1.7]}>
-        <mesh position={[-0.55, 0.5, 0]} rotation={[0, 0, -0.42]} castShadow>
-          <boxGeometry args={[0.08, 1.2, 0.85]} />
-          <meshStandardMaterial color="#2a3654" metalness={0.78} roughness={0.32} />
+      {/* ============ V-TAILS (hidden for bomber/flying-wing) ============ */}
+      {!hideTails && (
+        <group position={[0, 0.25, -1.7]}>
+          <mesh position={[-0.55, 0.5, 0]} rotation={[0, 0, -0.42]} castShadow>
+            <boxGeometry args={[0.08, 1.2, 0.85]} />
+            <meshStandardMaterial color={bodyTint} metalness={0.78} roughness={0.32} />
+          </mesh>
+          <mesh position={[0.55, 0.5, 0]} rotation={[0, 0, 0.42]} castShadow>
+            <boxGeometry args={[0.08, 1.2, 0.85]} />
+            <meshStandardMaterial color={bodyTint} metalness={0.78} roughness={0.32} />
+          </mesh>
+          {/* Tail tip cyan strobe */}
+          <mesh position={[-0.8, 1.0, -0.2]}>
+            <sphereGeometry args={[0.06, 8, 6]} />
+            <meshStandardMaterial color="#00dbe7" emissive="#00dbe7" emissiveIntensity={2.5} />
+          </mesh>
+          <mesh position={[0.8, 1.0, -0.2]}>
+            <sphereGeometry args={[0.06, 8, 6]} />
+            <meshStandardMaterial color="#00dbe7" emissive="#00dbe7" emissiveIntensity={2.5} />
+          </mesh>
+        </group>
+      )}
+
+      {/* Bomber gets extra dorsal spine detail */}
+      {hideTails && (
+        <mesh position={[0, 0.35, -0.8]}>
+          <boxGeometry args={[0.14, 0.18, 2.4]} />
+          <meshStandardMaterial color={bodyTint} metalness={0.75} roughness={0.35} />
         </mesh>
-        <mesh position={[0.55, 0.5, 0]} rotation={[0, 0, 0.42]} castShadow>
-          <boxGeometry args={[0.08, 1.2, 0.85]} />
-          <meshStandardMaterial color="#2a3654" metalness={0.78} roughness={0.32} />
-        </mesh>
-        {/* Tail tip cyan strobe */}
-        <mesh position={[-0.8, 1.0, -0.2]}>
-          <sphereGeometry args={[0.06, 8, 6]} />
-          <meshStandardMaterial color="#00dbe7" emissive="#00dbe7" emissiveIntensity={2.5} />
-        </mesh>
-        <mesh position={[0.8, 1.0, -0.2]}>
-          <sphereGeometry args={[0.06, 8, 6]} />
-          <meshStandardMaterial color="#00dbe7" emissive="#00dbe7" emissiveIntensity={2.5} />
-        </mesh>
-      </group>
+      )}
+      {/* suppress unused warning */}
+      {hideCanopyBubble ? null : null}
 
       {/* ============ ENGINE NOZZLES ============ */}
       {[-0.38, 0.38].map((x, i) => (

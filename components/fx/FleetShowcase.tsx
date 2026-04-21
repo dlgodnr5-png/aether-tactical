@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { animate } from "animejs";
-import JetSilhouette from "./JetSilhouette";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { ContactShadows, Environment } from "@react-three/drei";
+import { useRef } from "react";
+import * as THREE from "three";
+import JetModel3D from "./JetModel3D";
 
 type Variant = "fighter" | "bomber" | "interceptor" | "multirole" | "support";
 
@@ -11,93 +13,96 @@ interface Props {
   className?: string;
 }
 
-export default function FleetShowcase({ variant, className = "" }: Props) {
-  const jetRef = useRef<HTMLDivElement | null>(null);
-  const ringRef = useRef<HTMLDivElement | null>(null);
+// Per-variant group transform (scale + rotation + pose)
+const VARIANT_TRANSFORM: Record<
+  Variant,
+  { scale: [number, number, number]; rotation: [number, number, number]; camY: number }
+> = {
+  fighter: { scale: [1, 1, 1], rotation: [0, 0, 0], camY: 2.2 },
+  bomber: { scale: [1.35, 0.55, 0.9], rotation: [-0.05, 0, 0], camY: 1.6 }, // flatter, wider (flying wing)
+  interceptor: { scale: [0.75, 0.85, 1.45], rotation: [-0.05, 0, 0], camY: 2.0 }, // longer, thinner
+  multirole: { scale: [1.0, 1.0, 1.0], rotation: [0, 0, 0], camY: 2.2 },
+  support: { scale: [1.2, 1.05, 0.9], rotation: [0, 0, 0], camY: 2.1 }, // stubbier, wider
+};
 
-  useEffect(() => {
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) return;
+function RotatingJet({ variant }: { variant: Variant }) {
+  const ref = useRef<THREE.Group>(null!);
+  const cfg = VARIANT_TRANSFORM[variant];
 
-    let jetAnim: ReturnType<typeof animate> | null = null;
-    let ringAnim: ReturnType<typeof animate> | null = null;
-
-    if (jetRef.current) {
-      jetAnim = animate(jetRef.current, {
-        rotateY: [
-          { to: 14, duration: 3200 },
-          { to: -14, duration: 3200 },
-        ],
-        rotateX: [
-          { to: 6, duration: 3200 },
-          { to: -2, duration: 3200 },
-        ],
-        translateY: [
-          { to: -8, duration: 2400 },
-          { to: 0, duration: 2400 },
-        ],
-        loop: true,
-        alternate: true,
-        ease: "inOutSine",
-      });
+  useFrame((state, delta) => {
+    if (ref.current) {
+      ref.current.rotation.y += delta * 0.28;
+      // Gentle vertical bob
+      ref.current.position.y = Math.sin(state.clock.elapsedTime * 0.8) * 0.08;
     }
-    if (ringRef.current) {
-      ringAnim = animate(ringRef.current, {
-        rotate: "1turn",
-        duration: 18000,
-        loop: true,
-        ease: "linear",
-      });
-    }
-
-    return () => {
-      jetAnim?.pause();
-      ringAnim?.pause();
-    };
-  }, [variant]);
+  });
 
   return (
-    <div
-      className={`relative w-full h-full ${className}`}
-      style={{ perspective: "1400px", perspectiveOrigin: "50% 45%" }}
-    >
-      {/* Rotating hologram platform ring */}
-      <div
-        className="absolute left-1/2 bottom-[10%] -translate-x-1/2 w-[78%] h-[28%] pointer-events-none"
-        style={{ transform: "rotateX(72deg)", transformOrigin: "50% 100%" }}
+    <group ref={ref} rotation={cfg.rotation} scale={cfg.scale}>
+      <JetModel3D throttle={0.55} bank={0} contrails={false} variant={variant} />
+    </group>
+  );
+}
+
+export default function FleetShowcase({ variant, className = "" }: Props) {
+  const cfg = VARIANT_TRANSFORM[variant];
+
+  return (
+    <div className={`relative w-full h-full ${className}`}>
+      <Canvas
+        shadows
+        dpr={[1, 2]}
+        camera={{ position: [0, cfg.camY, 11], fov: 32, near: 0.1, far: 200 }}
+        gl={{ antialias: true, alpha: true }}
       >
-        <div
-          ref={ringRef}
-          className="relative w-full h-full rounded-full border border-cyan-400/25"
-          style={{
-            background:
-              "radial-gradient(ellipse at center, rgba(0,219,231,0.15) 0%, rgba(0,219,231,0.04) 40%, transparent 70%)",
-            boxShadow:
-              "inset 0 0 40px rgba(0,219,231,0.18), 0 0 40px -8px rgba(0,219,231,0.35)",
-          }}
-        >
-          {/* tick marks on ring */}
-          {Array.from({ length: 24 }).map((_, i) => (
-            <span
-              key={i}
-              className="absolute left-1/2 top-0 h-1.5 w-[2px] bg-cyan-400/45"
-              style={{
-                transform: `translate(-50%, 0) rotate(${(360 / 24) * i}deg)`,
-                transformOrigin: "50% 50vmin",
-              }}
-            />
-          ))}
-        </div>
-      </div>
+        <color attach="background" args={["#080d22"]} />
+        <fog attach="fog" args={["#080d22", 14, 30]} />
 
-      {/* Ground ambient shadow (elliptical) */}
-      <div
-        aria-hidden
-        className="absolute left-1/2 bottom-[14%] -translate-x-1/2 w-[58%] h-4 rounded-[50%] bg-black/55 blur-md"
-      />
+        {/* Lighting — showroom style */}
+        <ambientLight intensity={0.35} color="#c6dcff" />
+        <directionalLight
+          position={[6, 9, 4]}
+          intensity={1.4}
+          color="#f0f7ff"
+          castShadow
+          shadow-mapSize={[1024, 1024]}
+        />
+        <directionalLight position={[-6, 3, -4]} intensity={0.45} color="#8ec1ff" />
+        <pointLight position={[0, 2.5, 6]} intensity={1.0} color="#00dbe7" distance={14} />
+        <pointLight position={[0, -2, -4]} intensity={0.4} color="#00dbe7" distance={10} />
 
-      {/* Altitude scan tick lines (flying atmosphere feel) */}
-      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between py-6 opacity-35">
+        {/* HDR environment for metallic reflections */}
+        <Environment preset="night" />
+
+        {/* Rotating jet */}
+        <RotatingJet variant={variant} />
+
+        {/* Ground contact shadow */}
+        <ContactShadows position={[0, -1.6, 0]} opacity={0.55} scale={14} blur={2.4} far={5} />
+
+        {/* Platform ring */}
+        <mesh position={[0, -1.59, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[3.2, 3.5, 64]} />
+          <meshBasicMaterial color="#00dbe7" transparent opacity={0.35} side={THREE.DoubleSide} />
+        </mesh>
+        <mesh position={[0, -1.58, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[3.6, 4.2, 64]} />
+          <meshBasicMaterial color="#00dbe7" transparent opacity={0.12} side={THREE.DoubleSide} />
+        </mesh>
+      </Canvas>
+
+      {/* HUD corner brackets overlay (on top of canvas) */}
+      {[
+        "top-2 left-2 border-t border-l",
+        "top-2 right-2 border-t border-r",
+        "bottom-2 left-2 border-b border-l",
+        "bottom-2 right-2 border-b border-r",
+      ].map((c) => (
+        <div key={c} className={`pointer-events-none absolute w-6 h-6 border-cyan-400/70 ${c}`} />
+      ))}
+
+      {/* Altitude tick overlay */}
+      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between py-6 opacity-30">
         {["60K", "45K", "30K", "15K", "0M"].map((tick) => (
           <div
             key={tick}
@@ -108,40 +113,6 @@ export default function FleetShowcase({ variant, className = "" }: Props) {
           </div>
         ))}
       </div>
-
-      {/* The jet itself — with 3D transform */}
-      <div
-        ref={jetRef}
-        className="absolute inset-0 flex items-center justify-center will-change-transform"
-        style={{ transformStyle: "preserve-3d" }}
-      >
-        {/* Back glow silhouette (behind, larger, blurred) */}
-        <div
-          className="absolute inset-0 flex items-center justify-center"
-          style={{ transform: "translateZ(-30px) scale(1.05)", filter: "blur(14px)" }}
-        >
-          <JetSilhouette variant={variant} className="w-[70%] h-[70%] opacity-45" glow={0.8} />
-        </div>
-        {/* Hero layer */}
-        <JetSilhouette variant={variant} className="relative w-[72%] h-[72%]" glow={1.3} />
-        {/* Front highlight ghost (subtle) */}
-        <div
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-          style={{ transform: "translateZ(12px)", mixBlendMode: "screen" }}
-        >
-          <JetSilhouette variant={variant} className="w-[72%] h-[72%] opacity-25" glow={0.6} />
-        </div>
-      </div>
-
-      {/* Corner brackets reinforcing HUD feel */}
-      {[
-        "top-2 left-2 border-t border-l",
-        "top-2 right-2 border-t border-r",
-        "bottom-2 left-2 border-b border-l",
-        "bottom-2 right-2 border-b border-r",
-      ].map((c) => (
-        <div key={c} className={`pointer-events-none absolute w-6 h-6 border-cyan-400/70 ${c}`} />
-      ))}
     </div>
   );
 }
