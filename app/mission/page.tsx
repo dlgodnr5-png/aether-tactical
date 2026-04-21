@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useGameStore } from "@/store/gameStore";
 import MagneticButton from "@/components/fx/MagneticButton";
 import NumberTicker from "@/components/fx/NumberTicker";
+import CarrierLaunch from "@/components/fx/CarrierLaunch";
 import { engineAudio } from "@/lib/engine-audio";
 import type {
   AltitudeTier,
@@ -52,6 +53,10 @@ export default function MissionPage() {
   const [fireToken, setFireToken] = useState(0);
   const [boostToken, setBoostToken] = useState(0);
   const [cockpitView, setCockpitView] = useState(false);
+  const [launchComplete, setLaunchComplete] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    return window.sessionStorage.getItem("mission:launched") === "1";
+  });
   const [hud, setHud] = useState<MissionState>({
     tier: 1,
     altitude: 0,
@@ -244,10 +249,24 @@ export default function MissionPage() {
           boostToken={boostToken}
           steering={steering}
           cockpitView={cockpitView}
+          paused={!launchComplete}
           onStateChange={setHud}
           onEvent={onEvent}
         />
       </div>
+
+      {/* Carrier launch cutscene — plays once per session before physics starts */}
+      {!launchComplete && (
+        <div className="absolute inset-0 z-20">
+          <CarrierLaunch
+            variant="fighter"
+            onComplete={() => {
+              window.sessionStorage.setItem("mission:launched", "1");
+              setLaunchComplete(true);
+            }}
+          />
+        </div>
+      )}
 
       <div className="pointer-events-none absolute inset-0 z-10">
         {/* Top-left: altitude + flight data */}

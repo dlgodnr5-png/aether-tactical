@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { animate, createTimeline } from "animejs";
+import { createTimeline } from "animejs";
 import JetSilhouette from "./JetSilhouette";
 
 type Variant = "fighter" | "bomber" | "interceptor" | "multirole" | "support";
@@ -12,18 +12,21 @@ interface Props {
 }
 
 /**
- * Aircraft carrier CATOBAR launch cutscene.
- * Plays once per mount. Stylized SVG deck with perspective; jet accelerates
- * down the deck, catapult steam burst, afterburner trail, climb-out.
+ * Aircraft carrier CATOBAR launch cutscene (stylized 2D SVG + CSS perspective).
+ * Plays once. Deck, steam, afterburner, screen flash, status HUD.
  */
 export default function CarrierLaunch({ variant = "fighter", onComplete }: Props) {
   const [phase, setPhase] = useState<"active" | "done">("active");
   const deckRef = useRef<HTMLDivElement | null>(null);
+  const jetWrapRef = useRef<HTMLDivElement | null>(null);
   const jetRef = useRef<HTMLDivElement | null>(null);
   const steamRef = useRef<HTMLDivElement | null>(null);
   const trailRef = useRef<HTMLDivElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const statusRef = useRef<HTMLDivElement | null>(null);
+  const skyRef = useRef<HTMLDivElement | null>(null);
+  const countdownRef = useRef<HTMLDivElement | null>(null);
+  const [countLabel, setCountLabel] = useState<string>("");
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -32,21 +35,30 @@ export default function CarrierLaunch({ variant = "fighter", onComplete }: Props
       onComplete?.();
     };
     if (reduced) {
-      window.setTimeout(finish, 500);
+      window.setTimeout(finish, 300);
       return;
     }
 
-    const tl = createTimeline({
-      onComplete: finish,
+    // Pre-launch countdown
+    const countTicks = [
+      { t: 0, label: "DECK CLEAR" },
+      { t: 400, label: "CAT-1 TENSION" },
+      { t: 800, label: "READY" },
+      { t: 1200, label: "LAUNCH" },
+    ];
+    countTicks.forEach(({ t, label }) => {
+      window.setTimeout(() => setCountLabel(label), t);
     });
 
-    // Status ticker pulse
+    const tl = createTimeline({ onComplete: finish });
+
     if (statusRef.current) {
-      tl.add(statusRef.current, {
-        opacity: [0, 1],
-        duration: 300,
-        ease: "outQuad",
-      });
+      tl.add(statusRef.current, { opacity: [0, 1], duration: 300, ease: "outQuad" });
+    }
+
+    // Sky sunrise glow
+    if (skyRef.current) {
+      tl.add(skyRef.current, { opacity: [0.7, 1], duration: 1200, ease: "inOutSine" }, 0);
     }
 
     // Catapult steam burst
@@ -54,29 +66,47 @@ export default function CarrierLaunch({ variant = "fighter", onComplete }: Props
       tl.add(
         steamRef.current,
         {
-          opacity: [0, 0.9, 0.5],
-          scaleX: [0.3, 1.6],
-          scaleY: [0.4, 1.2],
-          duration: 500,
+          opacity: [0, 1, 0.6],
+          scaleX: [0.3, 2.0],
+          scaleY: [0.4, 1.6],
+          duration: 700,
           ease: "outQuart",
+        },
+        800
+      );
+    }
+
+    // Jet idle shudder pre-launch
+    if (jetWrapRef.current) {
+      tl.add(
+        jetWrapRef.current,
+        {
+          translateX: [
+            { to: -2, duration: 80 },
+            { to: 2, duration: 80 },
+            { to: -1, duration: 80 },
+            { to: 1, duration: 80 },
+            { to: 0, duration: 80 },
+          ],
+          loop: 2,
+          duration: 400,
         },
         400
       );
     }
 
-    // Jet accelerates forward down deck
-    if (jetRef.current) {
+    // Jet accelerates forward down deck (translateY upward = going away + up)
+    if (jetWrapRef.current) {
       tl.add(
-        jetRef.current,
+        jetWrapRef.current,
         {
-          translateY: [0, -140],
-          translateZ: [0, 260],
-          scale: [1, 0.42],
-          rotateX: [0, -14],
-          duration: 1000,
+          translateY: [0, -180],
+          scale: [1, 0.35],
+          rotate: [0, -2],
+          duration: 1100,
           ease: "inQuart",
         },
-        600
+        1200
       );
     }
 
@@ -85,27 +115,27 @@ export default function CarrierLaunch({ variant = "fighter", onComplete }: Props
       tl.add(
         trailRef.current,
         {
-          opacity: [0, 1, 0.7],
-          scaleY: [0.1, 1],
-          duration: 800,
+          opacity: [0, 1, 0.8],
+          scaleY: [0.1, 1.3],
+          duration: 900,
           ease: "outQuad",
         },
-        800
+        1350
       );
     }
 
-    // Climb-out: jet rises off the deck
-    if (jetRef.current) {
+    // Climb-out: jet rises further toward sky
+    if (jetWrapRef.current) {
       tl.add(
-        jetRef.current,
+        jetWrapRef.current,
         {
-          translateY: -260,
-          rotateX: -28,
-          scale: 0.34,
-          duration: 600,
+          translateY: -320,
+          scale: 0.22,
+          rotate: -8,
+          duration: 700,
           ease: "outQuart",
         },
-        1500
+        2100
       );
     }
 
@@ -114,11 +144,11 @@ export default function CarrierLaunch({ variant = "fighter", onComplete }: Props
       tl.add(
         overlayRef.current,
         {
-          opacity: [0, 0.25, 0],
-          duration: 400,
+          opacity: [0, 0.5, 0],
+          duration: 500,
           ease: "outExpo",
         },
-        900
+        1400
       );
     }
 
@@ -128,10 +158,10 @@ export default function CarrierLaunch({ variant = "fighter", onComplete }: Props
         deckRef.current,
         {
           opacity: [1, 0],
-          duration: 450,
+          duration: 500,
           ease: "inQuad",
         },
-        2000
+        2700
       );
     }
 
@@ -143,116 +173,236 @@ export default function CarrierLaunch({ variant = "fighter", onComplete }: Props
   if (phase === "done") return null;
 
   return (
-    <div
-      ref={deckRef}
-      className="pointer-events-none absolute inset-0 z-30 overflow-hidden"
-    >
-      {/* Sky gradient */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#233e6e] via-[#1a2d55] to-[#0a1428]" />
+    <div ref={deckRef} className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
+      {/* Sky gradient (dawn) */}
+      <div
+        ref={skyRef}
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(180deg, #ff8060 0%, #c4527f 12%, #3e5090 35%, #1a2a55 55%, #0a1428 100%)",
+        }}
+      />
 
-      {/* Horizon line + distant sea */}
-      <div className="absolute left-0 right-0 top-[40%] h-px bg-cyan-400/40" />
-      <div className="absolute left-0 right-0 top-[40%] bottom-0 bg-gradient-to-b from-[#0c1a2e] to-[#04080f]" />
+      {/* Sun glow */}
+      <div
+        className="absolute"
+        style={{
+          left: "68%",
+          top: "22%",
+          width: "22%",
+          aspectRatio: "1",
+          background:
+            "radial-gradient(circle, rgba(255,220,150,0.9) 0%, rgba(255,140,80,0.4) 35%, transparent 65%)",
+          filter: "blur(14px)",
+        }}
+      />
 
-      {/* Distant horizon haze */}
-      <div className="absolute left-0 right-0 top-[38%] h-8 bg-gradient-to-b from-cyan-300/15 to-transparent" />
+      {/* Horizon band with atmospheric haze */}
+      <div className="absolute left-0 right-0 top-[40%] h-16 bg-gradient-to-b from-[#ff9f70]/20 via-[#6280c0]/25 to-transparent" />
+      <div className="absolute left-0 right-0 top-[42%] h-px bg-cyan-200/50" />
 
-      {/* CARRIER DECK — perspective trapezoid with angled flight deck */}
+      {/* Ocean below horizon */}
+      <div
+        className="absolute left-0 right-0 bottom-0 top-[42%]"
+        style={{
+          background:
+            "linear-gradient(180deg, #1a2e4a 0%, #0a1628 40%, #040810 100%)",
+        }}
+      >
+        {/* Subtle water lines */}
+        {[55, 65, 72, 80, 88, 94].map((t) => (
+          <div
+            key={t}
+            className="absolute left-0 right-0 bg-cyan-300/10"
+            style={{ top: `${t}%`, height: "1px" }}
+          />
+        ))}
+      </div>
+
+      {/* Distant carrier silhouette (parallax backdrop) */}
+      <div
+        className="absolute"
+        style={{
+          left: "68%",
+          top: "41%",
+          width: "8%",
+          height: "2%",
+          background: "#0a141f",
+          clipPath: "polygon(0 60%, 10% 30%, 15% 25%, 20% 35%, 90% 40%, 100% 55%, 95% 100%, 5% 100%)",
+          opacity: 0.7,
+        }}
+      />
+
+      {/* CARRIER DECK — tilted trapezoid with angled flight deck */}
       <div
         className="absolute left-1/2 bottom-0 -translate-x-1/2"
         style={{
-          width: "180%",
-          height: "68%",
-          transform: "translateX(-50%) perspective(900px) rotateX(58deg)",
+          width: "200%",
+          height: "70%",
+          transform: "translateX(-50%) perspective(800px) rotateX(62deg)",
           transformOrigin: "50% 100%",
         }}
       >
-        {/* Main deck plate */}
+        {/* Main deck plate (angled) */}
         <div
-          className="absolute inset-x-[10%] bottom-0 top-0 rounded-t-[6%]"
+          className="absolute inset-x-[6%] bottom-0 top-0 rounded-t-[4%]"
           style={{
             background:
-              "linear-gradient(180deg, #1a2436 0%, #222d42 40%, #2c3851 100%)",
-            boxShadow: "inset 0 2px 0 rgba(255,255,255,0.06)",
+              "linear-gradient(180deg, #141c2a 0%, #1c2639 35%, #252f48 75%, #2e3b58 100%)",
+            boxShadow: "inset 0 4px 0 rgba(255,255,255,0.04), inset 0 -4px 12px rgba(0,0,0,0.5)",
           }}
         />
-        {/* Centerline */}
-        <div className="absolute left-1/2 -translate-x-1/2 top-[6%] bottom-[4%] w-[3px] bg-[repeating-linear-gradient(180deg,rgba(255,255,255,0.9)_0_16px,transparent_16px_28px)]" />
-        {/* Catapult track (yellow) */}
-        <div className="absolute left-[44%] top-[8%] bottom-[20%] w-[3px] bg-gradient-to-b from-transparent via-[#ffb77f] to-[#ffb77f]/70" />
-        {/* Landing zone angle markings */}
-        <div className="absolute left-[16%] top-[30%] right-[60%] h-[3px] bg-[repeating-linear-gradient(90deg,#ffb77f_0_12px,transparent_12px_22px)] opacity-70 rotate-[-6deg]" />
-        <div className="absolute left-[18%] top-[45%] right-[62%] h-[3px] bg-[repeating-linear-gradient(90deg,#ffb77f_0_12px,transparent_12px_22px)] opacity-60 rotate-[-6deg]" />
 
-        {/* Island superstructure (right side) */}
-        <div
-          className="absolute right-[12%] top-[18%] w-[9%] h-[38%] rounded-sm bg-gradient-to-b from-[#3a475f] to-[#242b40] border-l border-cyan-400/15"
-          style={{ boxShadow: "inset 2px 0 0 rgba(255,255,255,0.04)" }}
-        >
-          <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-red-500/70 animate-pulse" />
-          <div className="absolute top-[25%] left-1/2 -translate-x-1/2 w-[60%] h-1 bg-cyan-400/25" />
-          <div className="absolute top-[40%] left-1/2 -translate-x-1/2 w-[50%] h-1 bg-cyan-400/20" />
+        {/* Non-skid texture stripes */}
+        {Array.from({ length: 30 }).map((_, i) => (
+          <div
+            key={i}
+            className="absolute left-[6%] right-[6%] bg-black/15"
+            style={{ top: `${(i / 30) * 100}%`, height: "1px" }}
+          />
+        ))}
+
+        {/* Deck edge (outer yellow safety line) */}
+        <div className="absolute left-[6%] top-0 bottom-0 w-[3px] bg-[#f5b15c]/65" />
+        <div className="absolute right-[6%] top-0 bottom-0 w-[3px] bg-[#f5b15c]/65" />
+
+        {/* Main centerline (dashed white) */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-[6%] bottom-[4%] w-[3px] bg-[repeating-linear-gradient(180deg,rgba(255,255,255,0.95)_0_18px,transparent_18px_30px)]" />
+
+        {/* Catapult track #1 (yellow) */}
+        <div className="absolute left-[40%] top-[8%] bottom-[24%] w-[4px] bg-gradient-to-b from-transparent via-[#ffb77f] to-[#ffb77f]/80 shadow-[0_0_12px_rgba(255,183,127,0.6)]" />
+        {/* Catapult track #2 */}
+        <div className="absolute left-[58%] top-[12%] bottom-[30%] w-[3px] bg-gradient-to-b from-transparent via-[#ffb77f]/70 to-[#ffb77f]/50" />
+
+        {/* Angled landing deck markings (yellow chevrons) */}
+        <div className="absolute left-[10%] top-[30%] right-[58%] h-[3px] bg-[repeating-linear-gradient(90deg,#ffb77f_0_14px,transparent_14px_26px)] opacity-70 rotate-[-7deg]" />
+        <div className="absolute left-[12%] top-[42%] right-[60%] h-[3px] bg-[repeating-linear-gradient(90deg,#ffb77f_0_14px,transparent_14px_26px)] opacity-60 rotate-[-7deg]" />
+        <div className="absolute left-[14%] top-[54%] right-[62%] h-[3px] bg-[repeating-linear-gradient(90deg,#ffb77f_0_14px,transparent_14px_26px)] opacity-55 rotate-[-7deg]" />
+
+        {/* Arresting cables (3 white wires across deck) */}
+        {[35, 42, 49, 56].map((top) => (
+          <div
+            key={top}
+            className="absolute left-[8%] right-[8%] h-[2px] bg-white/55"
+            style={{ top: `${top}%` }}
+          />
+        ))}
+
+        {/* Deck numbers (fictional) */}
+        <div className="absolute left-[44%] top-[12%] font-headline font-bold text-white/50 text-3xl select-none">
+          07
         </div>
 
-        {/* Deck edge lights */}
-        <div className="absolute left-[10%] top-0 bottom-0 w-[2px] bg-[repeating-linear-gradient(180deg,#ffb77f_0_4px,transparent_4px_22px)] opacity-60" />
-        <div className="absolute right-[10%] top-0 bottom-0 w-[2px] bg-[repeating-linear-gradient(180deg,#ffb77f_0_4px,transparent_4px_22px)] opacity-60" />
+        {/* Island superstructure (right side — more detailed) */}
+        <div
+          className="absolute right-[8%] top-[16%] w-[12%] h-[46%] rounded-sm"
+          style={{
+            background: "linear-gradient(180deg, #2c3850 0%, #1c2438 100%)",
+            boxShadow: "inset 2px 0 0 rgba(255,255,255,0.06), 2px 0 8px rgba(0,0,0,0.4)",
+          }}
+        >
+          {/* Mast */}
+          <div className="absolute top-[-18%] left-[45%] w-[2px] h-[20%] bg-[#3a4660]" />
+          {/* Radar (rotating disk) */}
+          <div
+            className="absolute top-[-12%] left-[28%] w-[40%] aspect-square rounded-full bg-[#4a5670]/80 border border-white/20"
+            style={{ animation: "spin 6s linear infinite" }}
+          />
+          {/* Bridge windows */}
+          <div className="absolute top-[14%] left-[10%] right-[10%] h-[4%] bg-cyan-300/50" />
+          <div className="absolute top-[22%] left-[10%] right-[10%] h-[3%] bg-cyan-300/35" />
+          {/* Navigation lights */}
+          <div className="absolute top-[10%] left-1/2 -translate-x-1/2 w-[5px] h-[5px] rounded-full bg-red-500 animate-pulse" />
+          <div className="absolute top-[35%] left-[85%] w-[4px] h-[4px] rounded-full bg-[#33ff88]" />
+          <div className="absolute top-[35%] left-[5%] w-[4px] h-[4px] rounded-full bg-red-500" />
+        </div>
+
+        {/* Deck edge LED strip */}
+        <div className="absolute left-[6%] top-0 bottom-0 w-[2px] bg-[repeating-linear-gradient(180deg,#ffb77f_0_4px,transparent_4px_22px)] opacity-70" />
+        <div className="absolute right-[6%] top-0 bottom-0 w-[2px] bg-[repeating-linear-gradient(180deg,#ffb77f_0_4px,transparent_4px_22px)] opacity-70" />
+
+        {/* Ski-jump bow (subtle upward curve at top/far end) */}
+        <div
+          className="absolute left-[6%] right-[6%] top-0 h-[10%]"
+          style={{
+            background: "linear-gradient(180deg, #1a2438 0%, transparent 100%)",
+            borderTopLeftRadius: "30% 100%",
+            borderTopRightRadius: "30% 100%",
+          }}
+        />
       </div>
 
-      {/* Catapult steam burst (in front of deck, at launch point) */}
+      {/* Catapult steam burst */}
       <div
         ref={steamRef}
-        className="absolute left-1/2 -translate-x-1/2 bottom-[32%] w-[45%] h-[18%] opacity-0"
+        className="absolute left-1/2 -translate-x-1/2 bottom-[30%] w-[55%] h-[22%] opacity-0"
         style={{
           background:
-            "radial-gradient(ellipse at 50% 80%, rgba(255,255,255,0.9) 0%, rgba(220,230,240,0.5) 30%, transparent 65%)",
-          filter: "blur(8px)",
+            "radial-gradient(ellipse at 50% 80%, rgba(255,255,255,0.95) 0%, rgba(220,230,240,0.55) 35%, transparent 65%)",
+          filter: "blur(10px)",
         }}
       />
 
-      {/* Afterburner trail (vertical cyan/orange cone below jet) */}
+      {/* Afterburner trail cone */}
       <div
         ref={trailRef}
-        className="absolute left-1/2 -translate-x-1/2 bottom-[30%] w-[9%] h-[22%] opacity-0 origin-bottom"
+        className="absolute left-1/2 -translate-x-1/2 bottom-[28%] w-[11%] h-[30%] opacity-0 origin-bottom"
         style={{
           background:
-            "linear-gradient(180deg, rgba(0,219,231,0) 0%, rgba(255,183,127,0.85) 40%, rgba(255,120,40,0.95) 80%, rgba(255,255,255,0) 100%)",
-          filter: "blur(4px)",
-          clipPath: "polygon(45% 0%, 55% 0%, 80% 100%, 20% 100%)",
+            "linear-gradient(180deg, rgba(0,219,231,0) 0%, rgba(255,220,100,0.85) 30%, rgba(255,120,40,0.98) 70%, rgba(255,60,20,0) 100%)",
+          filter: "blur(5px)",
+          clipPath: "polygon(45% 0%, 55% 0%, 85% 100%, 15% 100%)",
         }}
       />
 
-      {/* JET — starts on deck near viewer, launches toward horizon */}
+      {/* JET — stylized silhouette, animated forward and up */}
       <div
-        ref={jetRef}
-        className="absolute left-1/2 bottom-[22%] -translate-x-1/2 w-[26%] aspect-square will-change-transform"
-        style={{ transformStyle: "preserve-3d" }}
+        ref={jetWrapRef}
+        className="absolute left-1/2 bottom-[22%] -translate-x-1/2 w-[30%] aspect-square will-change-transform"
       >
-        <JetSilhouette variant={variant} className="w-full h-full" glow={1.4} />
+        <div ref={jetRef} className="w-full h-full">
+          <JetSilhouette variant={variant} glow={1.5} />
+        </div>
+        {/* Wingtip vortex puffs */}
+        <div
+          className="absolute left-[10%] bottom-[42%] w-[10%] aspect-square rounded-full bg-white/25 blur-md"
+          style={{ animation: "pulse 800ms ease-out infinite" }}
+        />
+        <div
+          className="absolute right-[10%] bottom-[42%] w-[10%] aspect-square rounded-full bg-white/25 blur-md"
+          style={{ animation: "pulse 800ms ease-out infinite" }}
+        />
       </div>
 
-      {/* White flash overlay on launch peak */}
-      <div
-        ref={overlayRef}
-        className="absolute inset-0 bg-white opacity-0"
-      />
+      {/* White flash overlay */}
+      <div ref={overlayRef} className="absolute inset-0 bg-white opacity-0" />
 
-      {/* Launch status HUD */}
+      {/* Top status HUD */}
       <div
         ref={statusRef}
         className="absolute top-6 left-4 right-4 flex items-center justify-between font-label text-[11px] tracking-[0.3em] text-cyan-300 opacity-0"
       >
         <div className="flex items-center gap-2">
           <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          CATOBAR LAUNCH — CAT-1 READY
+          CATOBAR LAUNCH — CAT-1
         </div>
         <div>AETHER CVN-Ω // DECK-07</div>
       </div>
 
-      {/* Bottom status */}
+      {/* Countdown label (center-top) */}
+      <div
+        ref={countdownRef}
+        className="absolute top-[28%] left-1/2 -translate-x-1/2 font-headline text-2xl sm:text-3xl font-bold text-white tracking-[0.3em]"
+        style={{ textShadow: "0 0 24px rgba(0,219,231,0.7), 0 2px 0 rgba(0,0,0,0.5)" }}
+      >
+        {countLabel}
+      </div>
+
+      {/* Bottom ticker */}
       <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between font-label text-[10px] tracking-[0.3em] text-cyan-400/70">
-        <span>DECK CLEAR</span>
         <span>WIND 045 @ 12 KTS</span>
+        <span>DECK CLEAR</span>
         <span>LAUNCH AUTHORIZED</span>
       </div>
 

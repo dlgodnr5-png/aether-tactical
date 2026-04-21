@@ -313,37 +313,31 @@ export default function JetModel3D({
         </group>
       ))}
 
-      {/* ============ V-TAILS (hidden for bomber/flying-wing) ============ */}
-      {!hideTails && (
-        <group position={[0, 0.25, -1.7]}>
-          <mesh position={[-0.55, 0.5, 0]} rotation={[0, 0, -0.42]} castShadow>
-            <boxGeometry args={[0.08, 1.2, 0.85]} />
-            <meshStandardMaterial color={bodyTint} metalness={0.78} roughness={0.32} />
-          </mesh>
-          <mesh position={[0.55, 0.5, 0]} rotation={[0, 0, 0.42]} castShadow>
-            <boxGeometry args={[0.08, 1.2, 0.85]} />
-            <meshStandardMaterial color={bodyTint} metalness={0.78} roughness={0.32} />
-          </mesh>
-          {/* Tail tip cyan strobe */}
-          <mesh position={[-0.8, 1.0, -0.2]}>
-            <sphereGeometry args={[0.06, 8, 6]} />
-            <meshStandardMaterial color="#00dbe7" emissive="#00dbe7" emissiveIntensity={2.5} />
-          </mesh>
-          <mesh position={[0.8, 1.0, -0.2]}>
-            <sphereGeometry args={[0.06, 8, 6]} />
-            <meshStandardMaterial color="#00dbe7" emissive="#00dbe7" emissiveIntensity={2.5} />
-          </mesh>
-        </group>
-      )}
-
-      {/* Bomber gets extra dorsal spine detail */}
-      {hideTails && (
-        <mesh position={[0, 0.35, -0.8]}>
-          <boxGeometry args={[0.14, 0.18, 2.4]} />
-          <meshStandardMaterial color={bodyTint} metalness={0.75} roughness={0.35} />
+      {/* ============ V-TAILS (hidden for bomber/flying-wing — visibility toggle keeps scene graph stable) ============ */}
+      <group position={[0, 0.25, -1.7]} visible={!hideTails}>
+        <mesh position={[-0.55, 0.5, 0]} rotation={[0, 0, -0.42]} castShadow>
+          <boxGeometry args={[0.08, 1.2, 0.85]} />
+          <meshStandardMaterial color={bodyTint} metalness={0.78} roughness={0.32} />
         </mesh>
-      )}
-      {/* suppress unused warning */}
+        <mesh position={[0.55, 0.5, 0]} rotation={[0, 0, 0.42]} castShadow>
+          <boxGeometry args={[0.08, 1.2, 0.85]} />
+          <meshStandardMaterial color={bodyTint} metalness={0.78} roughness={0.32} />
+        </mesh>
+        <mesh position={[-0.8, 1.0, -0.2]}>
+          <sphereGeometry args={[0.06, 8, 6]} />
+          <meshStandardMaterial color="#00dbe7" emissive="#00dbe7" emissiveIntensity={2.5} />
+        </mesh>
+        <mesh position={[0.8, 1.0, -0.2]}>
+          <sphereGeometry args={[0.06, 8, 6]} />
+          <meshStandardMaterial color="#00dbe7" emissive="#00dbe7" emissiveIntensity={2.5} />
+        </mesh>
+      </group>
+
+      {/* Bomber dorsal spine detail */}
+      <mesh position={[0, 0.35, -0.8]} visible={hideTails}>
+        <boxGeometry args={[0.14, 0.18, 2.4]} />
+        <meshStandardMaterial color={bodyTint} metalness={0.75} roughness={0.35} />
+      </mesh>
       {hideCanopyBubble ? null : null}
 
       {/* ============ ENGINE NOZZLES ============ */}
