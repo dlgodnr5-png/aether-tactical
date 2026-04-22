@@ -39,32 +39,34 @@ function loadKey() {
   return m[1].trim().replace(/^["']|["']$/g, "");
 }
 
-// Prompts — intentionally generic (avoid specific trademarked aircraft names)
+// Prompts describe publicly known visual characteristics of each modern
+// fighter type — no specific photo is copied. Grok generates original
+// renderings from text descriptions.
 const VARIANTS = [
   {
-    id: "fighter",
+    id: "f35",
     prompt:
-      "Photorealistic modern sixth-generation stealth air-superiority fighter jet in flight, tailless diamond wing planform, dark metallic gray panels, banking hard through volumetric storm clouds at golden hour, dramatic rim lighting on fuselage, contrail streams, aviation photography, ultra-detailed, shallow depth of field, cinematic, 16:9",
+      "Photorealistic modern fifth-generation multirole stealth fighter aircraft in flight, single-seat single-engine configuration, rounded smooth fuselage, bubble canopy, chin-mounted electro-optical sensor, twin vertical tails canted slightly outward, matte medium gray low-observable coating, banking left above cloud layer at golden hour, dramatic rim lighting, aviation photography, ultra-detailed, shallow depth of field, cinematic, 16:9",
   },
   {
-    id: "bomber",
+    id: "j20",
     prompt:
-      "Photorealistic modern stealth flying-wing strategic bomber aircraft in flight, three-quarter elevated rear view, bat-like silhouette, dark slate-gray radar-absorbent coating, cruising above dawn cloud deck, soft orange sunrise light across upper surfaces, hyper-realistic aviation photography, cinematic 16:9",
+      "Photorealistic modern fifth-generation twin-engine stealth air-superiority fighter aircraft, long slender fuselage with canard-delta wing configuration, forward canards near the cockpit, twin inward-canted vertical stabilizers, dark metallic blue-gray low-observable coating, cruising above overcast cloud deck at high altitude, side three-quarter view, dramatic sky, aviation photography, cinematic, 16:9",
   },
   {
-    id: "multirole",
+    id: "kf21",
     prompt:
-      "Photorealistic modern multirole strike fighter jet afterburner climb, matte dark metallic low-observable coating, blue-white plasma exhaust, contrail ribbons, rugged alpine terrain far below, cinematic aviation photography, shallow depth of field, 16:9",
+      "Photorealistic modern 4.5-generation twin-engine multirole fighter aircraft, conventional fighter proportions with trapezoidal wings, single-seat canopy, twin vertical tails, under-wing hardpoints with air-to-air missiles, matte two-tone gray camouflage paint scheme, banking maneuver over rugged mountain terrain at dusk, dynamic aviation photography, dramatic lighting, cinematic, 16:9",
   },
   {
-    id: "interceptor",
+    id: "f22",
     prompt:
-      "Photorealistic hypersonic reconnaissance strike aircraft, elongated dagger-shaped stealth planform, dark metallic coating, bright blue plasma afterburner trail, high-altitude near-space horizon with Earth curvature visible, dramatic lighting, cinematic aviation photography, 16:9",
+      "Photorealistic modern fifth-generation twin-engine stealth air-superiority fighter, sharp angular faceted fuselage, trapezoidal wings with swept leading edges, two tall vertical tails, thrust-vectoring exhaust nozzles, matte dark gray low-observable coating, banking hard into a climb with condensation vapor cones forming over wings, dramatic sky backdrop, aviation photography, cinematic, 16:9",
   },
   {
-    id: "support",
+    id: "kaan",
     prompt:
-      "Photorealistic twin-engine close air support attack aircraft low-altitude pass, rugged boxy fuselage, twin external jet engines, heavy nose gatling cannon, battlefield terrain beneath with smoke, tactical camouflage, dramatic side lighting, cinematic aviation photography, 16:9",
+      "Photorealistic modern fifth-generation twin-engine stealth air-superiority fighter aircraft, sleek angular fuselage, diamond wing planform, twin canted vertical stabilizers, bubble canopy, matte pearlescent blue-gray low-observable coating, cruising at high altitude above clean blue sky and distant cloud layer, cinematic composition, aviation photography, ultra-detailed, 16:9",
   },
 ];
 

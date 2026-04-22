@@ -14,7 +14,10 @@ type JetVariant = "fighter" | "bomber" | "interceptor" | "multirole" | "support"
 
 interface Plane {
   id: number;
+  slug: string; // used as image filename key: /images/fleet/{slug}.jpg
   name: string;
+  origin: string;
+  generation: string;
   role: string;
   speed: string;
   stealth: string;
@@ -23,12 +26,13 @@ interface Plane {
   gradient: string;
 }
 
+// 2026년 기준 세계 최신 전투기 Top 5 (스텔스/성능 기준)
 const PLANES: Plane[] = [
-  { id: 0, name: "F-47 NGAD",         role: "6TH-GEN AIR DOMINANCE", speed: "MACH 2+", stealth: "MAX",    payload: "INTERNAL AAM BAY",           variant: "fighter",     gradient: "from-[#0a2040] via-[#122c5a] to-[#050920]" },
-  { id: 1, name: "B-21 RAIDER",       role: "STEALTH BOMBER",     speed: "HIGH-SUB",  stealth: "MAX",    payload: "~13,600 kg INTERNAL",         variant: "bomber",      gradient: "from-[#071030] via-[#0f1a3e] to-[#030619]" },
-  { id: 2, name: "F-35A LIGHTNING II", role: "MULTI-ROLE STRIKE", speed: "MACH 1.6",  stealth: "HIGH",   payload: "4x AIM-120 / 18,000 LB EXT", variant: "multirole",   gradient: "from-[#102040] via-[#1a3050] to-[#080d22]" },
-  { id: 3, name: "SR-72 DARK EAGLE",  role: "HYPERSONIC RECON",   speed: "MACH 6+",   stealth: "HIGH",   payload: "HYPERSONIC STRIKE",           variant: "interceptor", gradient: "from-[#2a0a30] via-[#1a1a4a] to-[#060618]" },
-  { id: 4, name: "A-10C THUNDERBOLT II", role: "CLOSE AIR SUPPORT", speed: "MACH 0.75", stealth: "LOW",  payload: "GAU-8 30MM + 7,260 KG",       variant: "support",     gradient: "from-[#2a1a10] via-[#3a2418] to-[#120a05]" },
+  { id: 0, slug: "f35",  name: "F-35 LIGHTNING II",     origin: "USA",    generation: "5TH GEN",   role: "MULTI-ROLE STEALTH",    speed: "MACH 1.6",  stealth: "HIGH", payload: "4x AIM-120 / 18,000 LB", variant: "multirole", gradient: "from-[#102040] via-[#1a3050] to-[#080d22]" },
+  { id: 1, slug: "j20",  name: "J-20 MIGHTY DRAGON",    origin: "CHINA",  generation: "5TH GEN",   role: "AIR SUPERIORITY",       speed: "MACH 2.0",  stealth: "HIGH", payload: "6x PL-15 INTERNAL",       variant: "fighter",   gradient: "from-[#0a1430] via-[#0d2050] to-[#04081a]" },
+  { id: 2, slug: "kf21", name: "KF-21 BORAMAE",         origin: "KOREA",  generation: "4.5 GEN",   role: "MULTI-ROLE FIGHTER",    speed: "MACH 1.8",  stealth: "MED",  payload: "10x HARDPOINTS",          variant: "multirole", gradient: "from-[#0a2040] via-[#1a3868] to-[#050920]" },
+  { id: 3, slug: "f22",  name: "F-22 RAPTOR",           origin: "USA",    generation: "5TH GEN",   role: "AIR DOMINANCE",         speed: "MACH 2.25", stealth: "HIGH", payload: "6x AIM-120 INTERNAL",     variant: "fighter",   gradient: "from-[#0a1a30] via-[#112542] to-[#040912]" },
+  { id: 4, slug: "kaan", name: "KAAN",                  origin: "TÜRKIYE", generation: "5TH GEN",  role: "NEXT-GEN STEALTH",      speed: "MACH 2.0",  stealth: "HIGH", payload: "INTERNAL BAY + 8 EXT",    variant: "fighter",   gradient: "from-[#1a0e30] via-[#261850] to-[#080418]" },
 ];
 
 export default function FleetPage() {
@@ -96,7 +100,14 @@ export default function FleetPage() {
               <div className="absolute inset-0 bg-surface-glow" />
               <div className="absolute inset-0 holo-shimmer opacity-60" />
               <div key={plane.id} className="absolute inset-0 animate-[fadeInScale_500ms_cubic-bezier(0.22,1,0.36,1)]">
-                <FleetShowcase variant={plane.variant} />
+                <FleetShowcase variant={plane.variant} imageSlug={plane.slug} />
+              </div>
+
+              {/* Origin + Generation badge */}
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded border border-cyan-400/40 bg-black/50 backdrop-blur px-2 py-1 font-label text-[9px] tracking-[0.25em] text-cyan-300">
+                <span>{plane.origin}</span>
+                <span className="opacity-40">·</span>
+                <span className="text-tertiary">{plane.generation}</span>
               </div>
 
               {[

@@ -10,6 +10,8 @@ type Variant = "fighter" | "bomber" | "interceptor" | "multirole" | "support";
 
 interface Props {
   variant: Variant;
+  /** Image filename key. If provided, loads /images/fleet/{imageSlug}.jpg; otherwise falls back to variant. */
+  imageSlug?: string;
   className?: string;
 }
 
@@ -103,9 +105,9 @@ function PhotoHero({ variant, src }: { variant: Variant; src: string }) {
   );
 }
 
-export default function FleetShowcase({ variant, className = "" }: Props) {
+export default function FleetShowcase({ variant, imageSlug, className = "" }: Props) {
   const [hasImage, setHasImage] = useState<boolean | null>(null);
-  const imgSrc = `/images/fleet/${variant}.jpg`;
+  const imgSrc = `/images/fleet/${imageSlug ?? variant}.jpg`;
 
   // Probe for photorealistic image; fallback to 3D if absent
   useEffect(() => {
