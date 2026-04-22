@@ -13,8 +13,7 @@ import JetSilhouette from "@/components/fx/JetSilhouette";
 import CarrierLaunch from "@/components/fx/CarrierLaunch";
 import AltitudeHorizon from "@/components/fx/AltitudeHorizon";
 import { bootTimeline, scrambleText } from "@/lib/anime-presets";
-
-const LAUNCH_SESSION_KEY = "flight:launched";
+import { PLANES } from "@/lib/planes";
 
 // Pacific Ocean carrier group home — must match /targets
 const CARRIER_ORIGIN = { lat: 20.0, lng: 170.0, name: "CVN-78 · PACIFIC" };
@@ -23,8 +22,10 @@ export default function FlightPage() {
   const plasmaFuel = useGameStore((s) => s.plasmaFuel);
   const consumeFuel = useGameStore((s) => s.consumeFuel);
   const target = useGameStore((s) => s.target);
+  const selectedPlane = useGameStore((s) => s.selectedPlane);
   const unlockedKm = useTierStore((s) => s.unlockedKm);
   const tier = activeTier(unlockedKm);
+  const plane = PLANES[selectedPlane] ?? PLANES[0];
 
   // Altitude ceiling in meters. Infinite tier → 999km equivalent for display.
   const ceilingMeters = useMemo(
@@ -37,10 +38,8 @@ export default function FlightPage() {
   const [currentAltitude, setCurrentAltitude] = useState<number>(0);
   const [velocity, setVelocity] = useState<number>(2.4);
   const [boosted, setBoosted] = useState(false);
-  const [launched, setLaunched] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return window.sessionStorage.getItem(LAUNCH_SESSION_KEY) === "1";
-  });
+  // Cutscene ALWAYS plays on /flight entry — user asked to see takeoff every time
+  const [launched, setLaunched] = useState<boolean>(false);
   const ceilingReached = currentAltitude >= ceilingMeters;
 
   const hudRef = useRef<HTMLElement | null>(null);
@@ -91,7 +90,6 @@ export default function FlightPage() {
   };
 
   const onLaunchDone = () => {
-    window.sessionStorage.setItem(LAUNCH_SESSION_KEY, "1");
     setLaunched(true);
   };
 
@@ -123,13 +121,13 @@ export default function FlightPage() {
               <div key={c} className={`absolute w-8 h-8 border-2 border-cyan-400/80 ${c}`} />
             ))}
 
-            {/* Jet silhouette — with dynamic pitch/roll */}
+            {/* Jet silhouette — uses selected plane variant, dynamic pitch/roll */}
             <div
               ref={jetHudRef}
               className="absolute inset-0 flex items-center justify-center transition-transform duration-700 ease-out"
               style={{ transformStyle: "preserve-3d" }}
             >
-              <JetSilhouette variant="fighter" className="w-[60%] h-[60%]" glow={1.3} />
+              <JetSilhouette variant={plane.variant} className="w-[60%] h-[60%]" glow={1.3} />
             </div>
 
             {/* Target Lock Ring (always on) */}
@@ -137,8 +135,15 @@ export default function FlightPage() {
               <TargetLockRing active className="" />
             </div>
 
-            {/* Carrier launch cutscene — plays once per session */}
-            {!launched && <CarrierLaunch variant="fighter" onComplete={onLaunchDone} />}
+            {/* Carrier launch cutscene — plays every time /flight opens, with selected plane */}
+            {!launched && (
+              <CarrierLaunch
+                variant={plane.variant}
+                planeSlug={plane.slug}
+                planeName={plane.name}
+                onComplete={onLaunchDone}
+              />
+            )}
           </div>
 
           <div className="mt-6 text-center">

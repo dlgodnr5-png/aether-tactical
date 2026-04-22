@@ -8,14 +8,28 @@ type Variant = "fighter" | "bomber" | "interceptor" | "multirole" | "support";
 
 interface Props {
   variant?: Variant;
+  /** Plane slug (e.g. "f22"). If present the carrier deck scene includes
+   *  a real photo of the selected fighter on the catapult before liftoff. */
+  planeSlug?: string;
+  /** Plane display name for HUD text ("F-22 RAPTOR"). */
+  planeName?: string;
   onComplete?: () => void;
 }
 
 /**
  * Aircraft carrier CATOBAR launch cutscene (stylized 2D SVG + CSS perspective).
  * Plays once. Deck, steam, afterburner, screen flash, status HUD.
+ *
+ * With `planeSlug`, the cutscene layers the real fighter photo over the
+ * deck during the pre-launch countdown, then transitions to the animated
+ * silhouette at "LAUNCH" for the takeoff sequence.
  */
-export default function CarrierLaunch({ variant = "fighter", onComplete }: Props) {
+export default function CarrierLaunch({
+  variant = "fighter",
+  planeSlug,
+  planeName,
+  onComplete,
+}: Props) {
   const [phase, setPhase] = useState<"active" | "done">("active");
   const deckRef = useRef<HTMLDivElement | null>(null);
   const jetWrapRef = useRef<HTMLDivElement | null>(null);
@@ -26,7 +40,9 @@ export default function CarrierLaunch({ variant = "fighter", onComplete }: Props
   const statusRef = useRef<HTMLDivElement | null>(null);
   const skyRef = useRef<HTMLDivElement | null>(null);
   const countdownRef = useRef<HTMLDivElement | null>(null);
+  const realPhotoRef = useRef<HTMLImageElement | null>(null);
   const [countLabel, setCountLabel] = useState<string>("");
+  const [photoOk, setPhotoOk] = useState(true);
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -54,6 +70,21 @@ export default function CarrierLaunch({ variant = "fighter", onComplete }: Props
 
     if (statusRef.current) {
       tl.add(statusRef.current, { opacity: [0, 1], duration: 300, ease: "outQuad" });
+    }
+
+    // Real-photo hero fades in during pre-launch (0→1100ms), then dissolves
+    // at LAUNCH so the stylized silhouette takes over for the takeoff motion.
+    if (realPhotoRef.current && planeSlug && photoOk) {
+      tl.add(
+        realPhotoRef.current,
+        { opacity: [0, 1], duration: 500, ease: "outQuad" },
+        0,
+      );
+      tl.add(
+        realPhotoRef.current,
+        { opacity: [1, 0], scale: [1, 1.15], duration: 500, ease: "inQuad" },
+        1200,
+      );
     }
 
     // Sky sunrise glow
@@ -171,6 +202,8 @@ export default function CarrierLaunch({ variant = "fighter", onComplete }: Props
   }, [onComplete]);
 
   if (phase === "done") return null;
+
+  const showRealPhoto = !!planeSlug && photoOk;
 
   return (
     <div ref={deckRef} className="pointer-events-none absolute inset-0 z-30 overflow-hidden">
@@ -355,6 +388,31 @@ export default function CarrierLaunch({ variant = "fighter", onComplete }: Props
           clipPath: "polygon(45% 0%, 55% 0%, 85% 100%, 15% 100%)",
         }}
       />
+
+      {/* Real fighter photo — dominates pre-launch, dissolves at LAUNCH */}
+      {showRealPhoto && (
+        <img
+          ref={realPhotoRef}
+          src={`/images/carrier/${planeSlug}.jpg`}
+          alt={planeName ?? "fighter on catapult"}
+          className="pointer-events-none absolute left-1/2 bottom-[18%] -translate-x-1/2 w-[62%] max-w-[560px] rounded-sm shadow-[0_16px_60px_rgba(0,0,0,0.7)] opacity-0 will-change-transform"
+          style={{
+            filter:
+              "contrast(1.1) saturate(1.1) drop-shadow(0 0 28px rgba(255,180,120,0.35))",
+          }}
+          onError={() => setPhotoOk(false)}
+        />
+      )}
+
+      {/* Plane nameplate during pre-launch */}
+      {showRealPhoto && planeName && (
+        <div
+          className="pointer-events-none absolute left-1/2 top-[18%] -translate-x-1/2 font-headline text-2xl md:text-3xl font-bold tracking-[0.2em]"
+          style={{ textShadow: "0 0 24px rgba(0,219,231,0.7), 0 2px 0 rgba(0,0,0,0.5)" }}
+        >
+          <span className="text-cyan-200">{planeName}</span>
+        </div>
+      )}
 
       {/* JET — stylized silhouette, animated forward and up */}
       <div
