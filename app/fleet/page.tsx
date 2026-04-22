@@ -17,22 +17,25 @@ interface Plane {
   slug: string; // used as image filename key: /images/fleet/{slug}.jpg
   name: string;
   origin: string;
+  manufacturer: string;
   generation: string;
   role: string;
   speed: string;
   stealth: string;
   payload: string;
+  range: string;
+  engine: string;
   variant: JetVariant;
   gradient: string;
 }
 
 // 2026년 기준 세계 최신 전투기 Top 5 (스텔스/성능 기준)
 const PLANES: Plane[] = [
-  { id: 0, slug: "f35",  name: "F-35 LIGHTNING II",     origin: "USA",    generation: "5TH GEN",   role: "MULTI-ROLE STEALTH",    speed: "MACH 1.6",  stealth: "HIGH", payload: "4x AIM-120 / 18,000 LB", variant: "multirole", gradient: "from-[#102040] via-[#1a3050] to-[#080d22]" },
-  { id: 1, slug: "j20",  name: "J-20 MIGHTY DRAGON",    origin: "CHINA",  generation: "5TH GEN",   role: "AIR SUPERIORITY",       speed: "MACH 2.0",  stealth: "HIGH", payload: "6x PL-15 INTERNAL",       variant: "fighter",   gradient: "from-[#0a1430] via-[#0d2050] to-[#04081a]" },
-  { id: 2, slug: "kf21", name: "KF-21 BORAMAE",         origin: "KOREA",  generation: "4.5 GEN",   role: "MULTI-ROLE FIGHTER",    speed: "MACH 1.8",  stealth: "MED",  payload: "10x HARDPOINTS",          variant: "multirole", gradient: "from-[#0a2040] via-[#1a3868] to-[#050920]" },
-  { id: 3, slug: "f22",  name: "F-22 RAPTOR",           origin: "USA",    generation: "5TH GEN",   role: "AIR DOMINANCE",         speed: "MACH 2.25", stealth: "HIGH", payload: "6x AIM-120 INTERNAL",     variant: "fighter",   gradient: "from-[#0a1a30] via-[#112542] to-[#040912]" },
-  { id: 4, slug: "kaan", name: "KAAN",                  origin: "TÜRKIYE", generation: "5TH GEN",  role: "NEXT-GEN STEALTH",      speed: "MACH 2.0",  stealth: "HIGH", payload: "INTERNAL BAY + 8 EXT",    variant: "fighter",   gradient: "from-[#1a0e30] via-[#261850] to-[#080418]" },
+  { id: 0, slug: "f35",  name: "F-35 LIGHTNING II",  origin: "USA",     manufacturer: "LOCKHEED MARTIN", generation: "5TH GEN", role: "MULTI-ROLE STEALTH", speed: "MACH 1.6",  stealth: "VERY HIGH", payload: "4x AIM-120 · 18,000 LB",   range: "2,220 KM",  engine: "P&W F135 · 43K LBF",    variant: "multirole", gradient: "from-[#102040] via-[#1a3050] to-[#080d22]" },
+  { id: 1, slug: "f22",  name: "F-22 RAPTOR",        origin: "USA",     manufacturer: "LOCKHEED MARTIN", generation: "5TH GEN", role: "AIR DOMINANCE",      speed: "MACH 2.25", stealth: "EXTREME",   payload: "6x AIM-120 INTERNAL",      range: "2,960 KM",  engine: "2x P&W F119 · 35K LBF", variant: "fighter",   gradient: "from-[#0a1a30] via-[#112542] to-[#040912]" },
+  { id: 2, slug: "j20",  name: "J-20 MIGHTY DRAGON", origin: "CHINA",   manufacturer: "CHENGDU",         generation: "5TH GEN", role: "AIR SUPERIORITY",    speed: "MACH 2.0",  stealth: "HIGH",      payload: "6x PL-15 INTERNAL",        range: "5,500 KM",  engine: "WS-15 · 40K LBF",       variant: "fighter",   gradient: "from-[#0a1430] via-[#0d2050] to-[#04081a]" },
+  { id: 3, slug: "kf21", name: "KF-21 BORAMAE",      origin: "KOREA",   manufacturer: "KAI",             generation: "4.5 GEN", role: "MULTI-ROLE FIGHTER", speed: "MACH 1.81", stealth: "MEDIUM",    payload: "10x HARDPOINTS",           range: "2,900 KM",  engine: "2x GE F414 · 22K LBF",  variant: "multirole", gradient: "from-[#0a2040] via-[#1a3868] to-[#050920]" },
+  { id: 4, slug: "kaan", name: "KAAN",               origin: "TÜRKIYE", manufacturer: "TAI",             generation: "5TH GEN", role: "NEXT-GEN STEALTH",   speed: "MACH 2.0",  stealth: "HIGH",      payload: "INTERNAL BAY + 8 EXT",     range: "2,000+ KM", engine: "2x GE F110 (INTERIM)",  variant: "fighter",   gradient: "from-[#1a0e30] via-[#261850] to-[#080418]" },
 ];
 
 export default function FleetPage() {
@@ -103,9 +106,11 @@ export default function FleetPage() {
                 <FleetShowcase variant={plane.variant} imageSlug={plane.slug} />
               </div>
 
-              {/* Origin + Generation badge */}
+              {/* Origin · Manufacturer · Generation badge */}
               <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded border border-cyan-400/40 bg-black/50 backdrop-blur px-2 py-1 font-label text-[9px] tracking-[0.25em] text-cyan-300">
                 <span>{plane.origin}</span>
+                <span className="opacity-40">·</span>
+                <span className="text-on-surface-variant">{plane.manufacturer}</span>
                 <span className="opacity-40">·</span>
                 <span className="text-tertiary">{plane.generation}</span>
               </div>
@@ -151,27 +156,32 @@ export default function FleetPage() {
           </GlassCard>
         </section>
 
-        {/* Stats */}
-        <section ref={statsRef} className="grid grid-cols-3 gap-3">
-          {[
-            { label: "SPEED", value: plane.speed },
-            { label: "STEALTH", value: plane.stealth },
-            { label: "PAYLOAD", value: plane.payload },
-          ].map((stat, i) => (
-            <GlassCard key={stat.label} glow="none">
-              <div
-                ref={(el) => { statBarRefs.current[i] = el; }}
-                className="p-3 text-center"
-              >
-                <p className="font-label text-[10px] tracking-[0.25em] text-on-surface-variant">
-                  {stat.label}
-                </p>
-                <p className="mt-1 font-headline text-sm font-semibold text-cyan-300">
-                  {stat.value}
-                </p>
-              </div>
-            </GlassCard>
-          ))}
+        {/* Stats — 5-row tactical readout */}
+        <section ref={statsRef}>
+          <GlassCard glow="none">
+            <div className="p-4 flex flex-col gap-2.5">
+              {[
+                { label: "SPEED",   value: plane.speed,   tone: "text-cyan-300" },
+                { label: "STEALTH", value: plane.stealth, tone: "text-cyan-300" },
+                { label: "PAYLOAD", value: plane.payload, tone: "text-tertiary" },
+                { label: "RANGE",   value: plane.range,   tone: "text-cyan-300" },
+                { label: "ENGINE",  value: plane.engine,  tone: "text-on-surface-variant" },
+              ].map((stat, i) => (
+                <div
+                  key={stat.label}
+                  ref={(el) => { statBarRefs.current[i] = el; }}
+                  className="flex items-center justify-between font-label"
+                >
+                  <span className="text-[10px] tracking-[0.25em] text-on-surface-variant">
+                    {stat.label}
+                  </span>
+                  <span className={`text-xs tracking-widest font-semibold ${stat.tone}`}>
+                    {stat.value}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
         </section>
 
         {/* Deploy */}
