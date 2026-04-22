@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
+    "build": "npm run copy-cesium && next build",
+    "start": "next start",
+    "postinstall": "node scripts/copy-cesium-assets.mjs",
+    "copy-cesium": "node scripts/copy-cesium-assets.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.6",
@@ -13,12 +15,13 @@
     "@stripe/stripe-js": "^9.2.0",
     "@types/leaflet": "^1.9.21",
     "animejs": "^4.0.2",
+    "cesium": "^1.140.0",
     "clsx": "^2.1.1",
     "leaflet": "^1.9.4",
     "next": "16.2.4",
-    "phaser": "^4.0.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "resium": "^1.21.0",
     "stripe": "^22.0.2",
     "three": "^0.172.0",
     "zustand": "^5.0.12"
