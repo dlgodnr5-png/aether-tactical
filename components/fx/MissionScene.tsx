@@ -5,6 +5,12 @@ import { Sky, Stars, Cloud, Clouds, Sparkles } from "@react-three/drei";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import JetGLTF from "./JetGLTF";
+import type { PlaneSpecs } from "@/lib/planes";
+import { BASE_HP } from "@/lib/planes";
+
+const DEFAULT_SPECS: PlaneSpecs = {
+  speedMul: 1.0, hpMul: 1.0, damageMul: 1.0, stealth: 0.5, unlockCost: 0, rank: 0,
+};
 
 export type AltitudeTier = 1 | 2 | 3;
 
@@ -62,6 +68,8 @@ interface Props {
   steering?: SteeringInput;
   cockpitView?: boolean;
   paused?: boolean;
+  /** Per-jet specs from lib/planes.ts. Drives HP/speed/damage/stealth. */
+  planeSpecs?: PlaneSpecs;
 }
 
 const TIER_ALTITUDES: Record<AltitudeTier, { start: number; end: number; name: string }> = {
@@ -79,7 +87,10 @@ function MissionInner({
   steering,
   cockpitView,
   paused,
+  planeSpecs,
 }: Props) {
+  const specs = planeSpecs ?? DEFAULT_SPECS;
+  const initialHp = Math.round(BASE_HP * specs.hpMul);
   const jetGroup = useRef<THREE.Group>(null!);
   const { camera } = useThree();
 
@@ -110,7 +121,7 @@ function MissionInner({
     score: 0,
     missilesFired: 0,
     hitsLanded: 0,
-    hp: 100,
+    hp: initialHp,
   });
 
   const nextIdRef = useRef(1);
@@ -232,7 +243,7 @@ function MissionInner({
 
     // === Linear dynamics ===
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(jetGroup.current.quaternion);
-    const baseThrust = 90;
+    const baseThrust = 90 * specs.speedMul;
     const thrust = forward.clone().multiplyScalar(baseThrust * s.throttle * dt);
     velocityRef.current.add(thrust);
 
@@ -281,7 +292,9 @@ function MissionInner({
     if (spawnTimerRef.current <= 0) {
       spawnObstacle();
       const base = tier === 3 ? 0.85 : tier === 2 ? 1.2 : 1.9;
-      spawnTimerRef.current = base + Math.random() * 0.9;
+      // Stealth delays enemy acquisition: 0.5 = neutral, 0.98 = ~2x longer gaps
+      const stealthMul = 1 + (specs.stealth - 0.5);
+      spawnTimerRef.current = (base + Math.random() * 0.9) * stealthMul;
     }
 
     const jetPos = jetGroup.current.position;
@@ -315,7 +328,7 @@ function MissionInner({
       for (let j = obstacles.length - 1; j >= 0; j--) {
         const o = obstacles[j];
         if (m.position.distanceTo(o.position) < 3.8) {
-          o.hp -= 1;
+          o.hp -= specs.damageMul;
           missiles.splice(i, 1);
           hit = true;
           if (o.hp <= 0) {

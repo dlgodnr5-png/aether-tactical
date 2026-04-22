@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import "leaflet/dist/leaflet.css";
 import TopBar from "@/components/TopBar";
 import BottomNav from "@/components/BottomNav";
 import AmbientLayer from "@/components/fx/AmbientLayer";

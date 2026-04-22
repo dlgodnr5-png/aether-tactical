@@ -8,6 +8,9 @@ import MagneticButton from "@/components/fx/MagneticButton";
 import NumberTicker from "@/components/fx/NumberTicker";
 import CarrierLaunch from "@/components/fx/CarrierLaunch";
 import { engineAudio } from "@/lib/engine-audio";
+import VirtualJoystick from "@/components/controls/VirtualJoystick";
+import FireButton from "@/components/controls/FireButton";
+import { getPlaneSpecs } from "@/lib/planes";
 import type {
   AltitudeTier,
   MissionState,
@@ -48,6 +51,8 @@ export default function MissionPage() {
   const credits = useGameStore((s) => s.credits);
   const target = useGameStore((s) => s.target);
   const addCredits = useGameStore((s) => s.addCredits);
+  const selectedPlane = useGameStore((s) => s.selectedPlane);
+  const planeSpecs = getPlaneSpecs(selectedPlane);
   const [tier, setTier] = useState<AltitudeTier>(1);
   const [audioOn, setAudioOn] = useState(false);
   const [fireToken, setFireToken] = useState(0);
@@ -79,14 +84,16 @@ export default function MissionPage() {
   // === Steering state (updated every frame via refs to avoid re-render) ===
   const keyStateRef = useRef({ up: false, down: false, left: false, right: false, qyaw: false, eyaw: false });
   const mouseStateRef = useRef({ active: false, dx: 0, dy: 0 });
+  const joystickRef = useRef({ x: 0, y: 0 }); // mobile virtual joystick
   const [steering, setSteering] = useState<SteeringInput>({ pitch: 0, roll: 0, yaw: 0 });
 
-  // Loop: read key/mouse → compute steering every frame
+  // Loop: read key/mouse/joystick → compute steering every frame
   useEffect(() => {
     let raf = 0;
     const tick = () => {
       const k = keyStateRef.current;
       const m = mouseStateRef.current;
+      const j = joystickRef.current;
       let pitch = 0;
       let roll = 0;
       let yaw = 0;
@@ -96,16 +103,34 @@ export default function MissionPage() {
       if (k.right) roll += 1;
       if (k.qyaw) yaw -= 1;
       if (k.eyaw) yaw += 1;
-      // Mouse influence blends with keyboard (mouse wins when active)
+      // Mouse blend
       if (m.active) {
         pitch = Math.max(-1, Math.min(1, pitch + -m.dy));
         roll = Math.max(-1, Math.min(1, roll + m.dx));
+      }
+      // Mobile joystick blend (up on stick = nose-up pitch)
+      if (j.x !== 0 || j.y !== 0) {
+        pitch = Math.max(-1, Math.min(1, pitch + -j.y));
+        roll = Math.max(-1, Math.min(1, roll + j.x));
       }
       setSteering({ pitch, roll, yaw });
       raf = window.requestAnimationFrame(tick);
     };
     raf = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(raf);
+  }, []);
+
+  const onJoystickChange = useCallback((x: number, y: number) => {
+    joystickRef.current.x = x;
+    joystickRef.current.y = y;
+  }, []);
+
+  const onMobileFire = useCallback(() => {
+    setFireToken((t) => t + 1);
+  }, []);
+
+  const onMobileBoost = useCallback(() => {
+    setBoostToken((t) => t + 1);
   }, []);
 
   // === Audio lifecycle ===
@@ -250,6 +275,7 @@ export default function MissionPage() {
           steering={steering}
           cockpitView={cockpitView}
           paused={!launchComplete}
+          planeSpecs={planeSpecs}
           onStateChange={setHud}
           onEvent={onEvent}
         />
@@ -439,22 +465,26 @@ export default function MissionPage() {
           </div>
         )}
 
-        {/* FIRE button (mobile-friendly) */}
-        <button
-          onClick={() => setFireToken((t) => t + 1)}
-          data-hud-panel
-          className="pointer-events-auto fixed bottom-24 left-1/2 -translate-x-1/2 z-20 rounded-full bg-gradient-to-br from-red-500 to-red-700 text-white font-label tracking-[0.2em] text-sm font-bold px-8 py-4 shadow-[0_0_32px_-4px_rgba(255,40,40,0.7)] active:scale-95 transition"
-        >
-          🚀 FIRE [SPACE]
-        </button>
+        {/* Mobile controls: virtual joystick (pitch/roll) + fire/boost buttons */}
+        <div className="pointer-events-none absolute inset-0 z-20">
+          {/* Left thumb: joystick */}
+          <div className="pointer-events-auto fixed bottom-20 left-4 md:left-8">
+            <VirtualJoystick onChange={onJoystickChange} radius={54} />
+          </div>
+          {/* Right thumb: fire + boost stack */}
+          <div className="pointer-events-auto fixed bottom-20 right-4 md:right-8 flex flex-col items-end gap-3">
+            <FireButton onFire={onMobileBoost} label="BOOST" icon="⚡" tone="boost" />
+            <FireButton onFire={onMobileFire} label="FIRE" icon="🚀" tone="fire" />
+          </div>
+        </div>
 
         {/* Bottom status */}
         <div className="pointer-events-none absolute bottom-3 left-4 right-4 flex items-center justify-between font-label text-[10px] tracking-[0.3em] text-cyan-400/70">
           <span>MACH {(1 + hud.throttle * 2).toFixed(1)} ∙ {audioOn ? "AUDIO LIVE" : "AUDIO OFF"}</span>
-          <span>
+          <span className="hidden md:inline">
             TARGET {target ? `${target.lat.toFixed(2)}°, ${target.lng.toFixed(2)}°` : "— NO TARGET —"}
           </span>
-          <span>WASD/화살표: 조향 ∙ SPACE: 발사 ∙ SHIFT: 부스트 ∙ V: 콕핏</span>
+          <span className="hidden md:inline">WASD: 조향 ∙ SPACE: 발사 ∙ SHIFT: 부스트 ∙ V: 콕핏</span>
         </div>
       </div>
     </div>

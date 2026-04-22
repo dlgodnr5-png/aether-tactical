@@ -1,138 +1,227 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useGameStore } from "@/store/gameStore";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useTierStore } from "@/store/slices/tierSlice";
+import { TIERS, activeTier, type Tier } from "@/lib/tiers";
 import GlassCard from "@/components/fx/GlassCard";
-import NumberTicker from "@/components/fx/NumberTicker";
 import MagneticButton from "@/components/fx/MagneticButton";
 import { bootTimeline } from "@/lib/anime-presets";
 
-interface Pack {
-  id: string;
-  name: string;
-  creditsDelta: number;
-  price: string;
-  badge?: string;
-  icon: string;
+/**
+ * Tier purchase page — real Stripe Checkout flow.
+ *
+ *   1. User clicks tier → POST /api/checkout
+ *   2. Redirect to Stripe Checkout URL
+ *   3. On success Stripe redirects back to ?checkout=success&tier=$N
+ *      The webhook /api/stripe-webhook sets `aether_unlocked_km` cookie.
+ *      Here on success, we mirror it into useTierStore.
+ *   4. Free tier unlocks instantly without Stripe call.
+ */
+
+function readCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(^|; )" + name + "=([^;]*)"));
+  return match ? decodeURIComponent(match[2]) : null;
 }
 
-const PACKS: Pack[] = [
-  { id: "basic",  name: "Basic Refuel", creditsDelta: 100,  price: "$1",  icon: "local_gas_station" },
-  { id: "combat", name: "Combat Pack",  creditsDelta: 550,  price: "$5",  badge: "RECOMMENDED", icon: "bolt" },
-  { id: "elite",  name: "Elite Bundle", creditsDelta: 1200, price: "$10", icon: "military_tech" },
-];
-
 export default function ExchangePage() {
-  const credits = useGameStore((s) => s.credits);
-  const plasmaFuel = useGameStore((s) => s.plasmaFuel);
-  const addCredits = useGameStore((s) => s.addCredits);
-  const addFuel = useGameStore((s) => s.addFuel);
+  return (
+    <Suspense
+      fallback={
+        <div className="pt-20 text-center font-label text-xs tracking-[0.3em] text-cyan-400">
+          LOADING TIERS…
+        </div>
+      }
+    >
+      <ExchangeInner />
+    </Suspense>
+  );
+}
+
+function ExchangeInner() {
+  const unlockedKm = useTierStore((s) => s.unlockedKm);
+  const unlockTier = useTierStore((s) => s.unlockTier);
+
+  const [pending, setPending] = useState<string | null>(null);
+  const [banner, setBanner] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const currentTier = activeTier(unlockedKm);
+
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const headerRef = useRef<HTMLDivElement | null>(null);
-  const assetsRef = useRef<HTMLElement | null>(null);
-  const packsRef = useRef<HTMLElement | null>(null);
+  const statusRef = useRef<HTMLElement | null>(null);
+  const tiersRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    bootTimeline([headerRef.current, assetsRef.current, packsRef.current]);
+    bootTimeline([headerRef.current, statusRef.current, tiersRef.current]);
   }, []);
 
-  const purchase = (pack: Pack) => {
-    addCredits(pack.creditsDelta);
-    addFuel(Math.min(100, Math.floor(pack.creditsDelta / 20)));
-    alert(
-      `✔ ${pack.name} 충전 완료\n+${pack.creditsDelta.toLocaleString()} CR\n(추후 Stripe 결제 연동 예정)`
-    );
+  // Sync tier unlock from cookie (set by webhook) or success param
+  useEffect(() => {
+    const cookieKm = Number(readCookie("aether_unlocked_km"));
+    if (Number.isFinite(cookieKm) && cookieKm > 0) {
+      unlockTier(cookieKm);
+    }
+
+    const status = searchParams.get("checkout");
+    const tierUsd = Number(searchParams.get("tier"));
+    if (status === "success" && Number.isFinite(tierUsd)) {
+      const tier = TIERS.find((t) => t.usd === tierUsd);
+      if (tier) {
+        unlockTier(tier.km);
+        setBanner({
+          kind: "ok",
+          text: `✅ 결제 완료 — ${tier.label} (${tier.km}km) 해금`,
+        });
+      }
+      // Clear query params so refresh doesn't re-run
+      router.replace("/exchange");
+    } else if (status === "cancel") {
+      setBanner({ kind: "err", text: "결제 취소됨" });
+      router.replace("/exchange");
+    }
+  }, [searchParams, router, unlockTier]);
+
+  const purchase = async (tier: Tier) => {
+    if (tier.usd === 0) {
+      // Free tier instant unlock
+      unlockTier(tier.km);
+      setBanner({ kind: "ok", text: `${tier.label} (${tier.km}km) 활성화` });
+      return;
+    }
+    setPending(tier.id);
+    setBanner(null);
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tierUsd: tier.usd }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || "결제 세션 생성 실패");
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setBanner({ kind: "err", text: `❌ ${msg}` });
+      setPending(null);
+    }
   };
 
   return (
     <div className="relative pt-20 pb-28 min-h-screen">
       <div className="relative mx-auto max-w-3xl px-4 space-y-5">
         <div ref={headerRef} className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-cyan-400">inventory_2</span>
+          <span className="material-symbols-outlined text-cyan-400">radar</span>
           <div>
             <p className="font-label text-[10px] tracking-[0.3em] text-cyan-400">
-              AEROSPACE_COMMAND
+              RANGE // TIER ACQUISITION
             </p>
             <h1 className="font-headline text-2xl font-bold text-on-surface text-glow">
-              연료 &amp; 크레딧 충전
+              작전 반경 구매
             </h1>
           </div>
         </div>
 
-        {/* Current assets */}
-        <section ref={assetsRef}>
+        {banner && (
+          <div
+            className={`rounded-lg border px-4 py-3 font-label text-xs tracking-[0.2em] ${
+              banner.kind === "ok"
+                ? "border-lime-400/50 bg-lime-400/10 text-lime-300"
+                : "border-red-400/50 bg-red-400/10 text-red-300"
+            }`}
+          >
+            {banner.text}
+          </div>
+        )}
+
+        {/* Current tier */}
+        <section ref={statusRef}>
           <GlassCard glow="none">
             <div className="p-4">
               <p className="font-label text-[10px] tracking-[0.3em] text-on-surface-variant">
-                CURRENT ASSETS
+                ACTIVE TIER
               </p>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <div>
-                  <p className="font-label text-[10px] tracking-[0.25em] text-on-surface-variant">
-                    CREDITS
-                  </p>
-                  <p className="mt-1 font-headline text-2xl font-semibold text-tertiary tabular-nums">
-                    <NumberTicker value={credits} />
-                    <span className="ml-1 text-xs text-on-surface-variant font-label">CR</span>
-                  </p>
-                </div>
-                <div>
-                  <p className="font-label text-[10px] tracking-[0.25em] text-on-surface-variant">
-                    PLASMA FUEL
-                  </p>
-                  <p className="mt-1 font-headline text-2xl font-semibold text-primary tabular-nums text-glow">
-                    <NumberTicker value={Math.floor(plasmaFuel)} />
-                    <span className="ml-1 text-xs text-on-surface-variant font-label">%</span>
-                  </p>
-                  <div className="mt-2 h-1.5 w-full rounded-full bg-surface-container-lowest overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-cyan-500 to-cyan-300 transition-[width] duration-500"
-                      style={{ width: `${plasmaFuel}%` }}
-                    />
-                  </div>
-                </div>
+              <div className="mt-2 flex items-baseline justify-between">
+                <span className="font-headline text-2xl font-semibold text-lime-400">
+                  {currentTier.label}
+                </span>
+                <span className="font-label text-xs tabular-nums text-lime-300">
+                  {currentTier.km.toLocaleString()}km
+                </span>
               </div>
+              <p className="mt-1 font-label text-[11px] text-on-surface-variant">
+                {currentTier.description}
+              </p>
             </div>
           </GlassCard>
         </section>
 
-        {/* Packs */}
-        <section ref={packsRef} className="space-y-3">
-          {PACKS.map((pack) => (
-            <GlassCard key={pack.id} tilt glow={pack.badge ? "cyan" : "none"}>
-              <div className="relative p-4">
-                {pack.badge && (
-                  <span className="absolute -top-2 right-3 px-2 py-0.5 rounded-sm bg-cyan-400 text-[10px] tracking-[0.3em] font-label font-bold text-[#00363a] shadow-[0_0_12px_rgba(0,219,231,0.6)]">
-                    {pack.badge}
-                  </span>
-                )}
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-lg border border-cyan-400/40 bg-surface-container-lowest flex items-center justify-center">
-                    <span className="material-symbols-outlined text-cyan-300">{pack.icon}</span>
+        {/* Tiers */}
+        <section ref={tiersRef} className="space-y-3">
+          {TIERS.map((tier) => {
+            const isActive = tier.km === currentTier.km;
+            const isUpgrade = tier.km > currentTier.km;
+            const isPending = pending === tier.id;
+            return (
+              <GlassCard
+                key={tier.id}
+                tilt={!isActive}
+                glow={tier.usd === 5 ? "cyan" : "none"}
+              >
+                <div className="relative p-4">
+                  {tier.usd === 5 && (
+                    <span className="absolute -top-2 right-3 px-2 py-0.5 rounded-sm bg-cyan-400 text-[10px] tracking-[0.3em] font-label font-bold text-[#00363a] shadow-[0_0_12px_rgba(0,219,231,0.6)]">
+                      RECOMMENDED
+                    </span>
+                  )}
+                  {isActive && (
+                    <span className="absolute -top-2 left-3 px-2 py-0.5 rounded-sm bg-lime-400 text-[10px] tracking-[0.3em] font-label font-bold text-[#052a0e]">
+                      ACTIVE
+                    </span>
+                  )}
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-lg border border-cyan-400/40 bg-surface-container-lowest flex items-center justify-center">
+                      <span className="font-headline text-lg font-bold text-cyan-300 tabular-nums">
+                        {tier.km >= 1000 ? `${tier.km / 1000}K` : tier.km}
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-headline text-lg text-on-surface font-semibold">
+                        {tier.label}
+                      </p>
+                      <p className="font-label text-[11px] tracking-[0.2em] text-on-surface-variant">
+                        반경 {tier.km.toLocaleString()}km
+                      </p>
+                    </div>
+                    <MagneticButton
+                      onClick={() => purchase(tier)}
+                      disabled={isActive || isPending || !isUpgrade}
+                      tone={tier.usd === 5 ? "cyan" : "ghost"}
+                      className={`rounded-lg px-4 py-2 text-xs ${
+                        isActive || !isUpgrade ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
+                    >
+                      {isActive
+                        ? "현재"
+                        : isPending
+                          ? "로딩..."
+                          : tier.usd === 0
+                            ? "FREE"
+                            : `$${tier.usd}`}
+                    </MagneticButton>
                   </div>
-                  <div className="flex-1">
-                    <p className="font-headline text-lg text-on-surface font-semibold">
-                      {pack.name}
-                    </p>
-                    <p className="font-label text-[11px] tracking-[0.2em] text-tertiary">
-                      +{pack.creditsDelta.toLocaleString()} CR
-                    </p>
-                  </div>
-                  <MagneticButton
-                    onClick={() => purchase(pack)}
-                    tone={pack.badge ? "cyan" : "ghost"}
-                    className="rounded-lg px-4 py-2 text-xs"
-                  >
-                    {pack.price}
-                  </MagneticButton>
                 </div>
-              </div>
-            </GlassCard>
-          ))}
+              </GlassCard>
+            );
+          })}
         </section>
 
         <p className="text-center font-label text-[10px] tracking-[0.25em] text-on-surface-variant">
-          * 결제는 Stripe 보안 결제로 진행됩니다 (연동 예정)
+          * Stripe 안전 결제 · 결제 완료 시 즉시 반경 확장
         </p>
       </div>
     </div>
