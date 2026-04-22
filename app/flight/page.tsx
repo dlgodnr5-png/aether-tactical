@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useGameStore } from "@/store/gameStore";
+import { useTierStore } from "@/store/slices/tierSlice";
+import { activeTier, formatAltitudeKm, formatRangeKm, INFINITE_KM } from "@/lib/tiers";
 import GlassCard from "@/components/fx/GlassCard";
 import NumberTicker from "@/components/fx/NumberTicker";
 import MagneticButton from "@/components/fx/MagneticButton";
@@ -13,19 +16,32 @@ import { bootTimeline, scrambleText } from "@/lib/anime-presets";
 
 const LAUNCH_SESSION_KEY = "flight:launched";
 
+// Pacific Ocean carrier group home — must match /targets
+const CARRIER_ORIGIN = { lat: 20.0, lng: 170.0, name: "CVN-78 · PACIFIC" };
+
 export default function FlightPage() {
   const plasmaFuel = useGameStore((s) => s.plasmaFuel);
   const consumeFuel = useGameStore((s) => s.consumeFuel);
-  const maxAltitude = useGameStore((s) => s.maxAltitude);
-  const setMaxAltitude = useGameStore((s) => s.setMaxAltitude);
+  const target = useGameStore((s) => s.target);
+  const unlockedKm = useTierStore((s) => s.unlockedKm);
+  const tier = activeTier(unlockedKm);
 
-  const [currentAltitude, setCurrentAltitude] = useState<number>(maxAltitude);
+  // Altitude ceiling in meters. Infinite tier → 999km equivalent for display.
+  const ceilingMeters = useMemo(
+    () => (tier.altitudeKm >= INFINITE_KM ? 999_000 : tier.altitudeKm * 1000),
+    [tier.altitudeKm],
+  );
+  const isInfiniteTier = tier.altitudeKm >= INFINITE_KM;
+
+  // Start altitude = carrier deck level (0m sea level)
+  const [currentAltitude, setCurrentAltitude] = useState<number>(0);
   const [velocity, setVelocity] = useState<number>(2.4);
   const [boosted, setBoosted] = useState(false);
   const [launched, setLaunched] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     return window.sessionStorage.getItem(LAUNCH_SESSION_KEY) === "1";
   });
+  const ceilingReached = currentAltitude >= ceilingMeters;
 
   const hudRef = useRef<HTMLElement | null>(null);
   const telemRef = useRef<HTMLElement | null>(null);
@@ -36,18 +52,17 @@ export default function FlightPage() {
     bootTimeline([hudRef.current, telemRef.current]);
   }, []);
 
-  // Passive climb (50m / 100ms) — only after launch finished
+  // Passive climb — only after launch finished. Clamped to tier ceiling.
   useEffect(() => {
     if (!launched) return;
     const id = window.setInterval(() => {
-      setCurrentAltitude((a) => a + 50);
+      setCurrentAltitude((a) => {
+        if (a >= ceilingMeters) return a;
+        return Math.min(ceilingMeters, a + 50);
+      });
     }, 100);
     return () => window.clearInterval(id);
-  }, [launched]);
-
-  useEffect(() => {
-    if (currentAltitude > maxAltitude) setMaxAltitude(currentAltitude);
-  }, [currentAltitude, maxAltitude, setMaxAltitude]);
+  }, [launched, ceilingMeters]);
 
   useEffect(() => {
     if (!statusRef.current) return;
@@ -67,7 +82,8 @@ export default function FlightPage() {
   }, [velocity, currentAltitude]);
 
   const boost = () => {
-    setCurrentAltitude((a) => a + 1000);
+    if (ceilingReached) return;
+    setCurrentAltitude((a) => Math.min(ceilingMeters, a + 1000));
     consumeFuel(0.5);
     setVelocity((v) => Math.min(3.5, +(v + 0.05).toFixed(2)));
     setBoosted(true);
@@ -138,8 +154,25 @@ export default function FlightPage() {
               </span>
             </div>
             <h2 className="mt-2 font-headline text-3xl font-bold text-primary text-glow">
-              고도 상승 중...
+              {ceilingReached ? "고도 상한 도달" : "고도 상승 중..."}
             </h2>
+            <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-cyan-400/40 bg-black/50 backdrop-blur px-3 py-1.5 font-label text-[10px] tracking-[0.25em]">
+              <span className="relative inline-flex h-1.5 w-1.5">
+                <span className="absolute inset-0 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="relative rounded-full h-1.5 w-1.5 bg-emerald-400" />
+              </span>
+              <span className="text-emerald-300">출발지</span>
+              <span className="text-cyan-200">{CARRIER_ORIGIN.name}</span>
+              <span className="opacity-40">·</span>
+              <span className="tabular-nums text-cyan-100">
+                {CARRIER_ORIGIN.lat.toFixed(1)}°N, {CARRIER_ORIGIN.lng.toFixed(1)}°E
+              </span>
+            </div>
+            {target && (
+              <p className="mt-2 font-label text-[10px] tracking-[0.25em] text-amber-300">
+                🎯 목표: {target.address}
+              </p>
+            )}
           </div>
         </section>
 
@@ -185,18 +218,49 @@ export default function FlightPage() {
             </div>
           </GlassCard>
 
-          <GlassCard glow={boosted ? "cyan" : "none"}>
+          <GlassCard glow={boosted ? "cyan" : ceilingReached ? "orange" : "none"}>
             <div className="p-4">
-              <p className="font-label text-[10px] tracking-[0.25em] text-on-surface-variant">
-                ALTITUDE
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="font-label text-[10px] tracking-[0.25em] text-on-surface-variant">
+                  ALTITUDE
+                </p>
+                <p className="font-label text-[9px] tracking-[0.25em] text-lime-400">
+                  TIER <span className="font-bold">{tier.label}</span>
+                </p>
+              </div>
               <p className="mt-1 font-headline text-3xl font-bold text-primary tabular-nums text-glow">
                 <NumberTicker value={currentAltitude} duration={350} />
                 <span className="ml-1 text-sm text-on-surface-variant font-label">m</span>
               </p>
-              <p className="mt-1 font-label text-[10px] text-on-surface-variant tracking-widest">
-                MAX <NumberTicker value={maxAltitude} />m
-              </p>
+              {/* Altitude bar with tier ceiling */}
+              <div className="mt-2 h-1.5 w-full rounded-full bg-surface-container-lowest overflow-hidden">
+                <div
+                  className={`h-full transition-[width] duration-300 ease-out ${
+                    ceilingReached
+                      ? "bg-gradient-to-r from-amber-500 to-red-500"
+                      : "bg-gradient-to-r from-cyan-500 to-emerald-400"
+                  }`}
+                  style={{
+                    width: `${Math.min(100, (currentAltitude / ceilingMeters) * 100)}%`,
+                  }}
+                />
+              </div>
+              <div className="mt-1.5 flex items-center justify-between font-label text-[9px] tracking-[0.25em]">
+                <span className="text-on-surface-variant">
+                  CEILING {isInfiniteTier ? "∞" : `${(ceilingMeters / 1000).toLocaleString()} km`}
+                </span>
+                <span className="text-on-surface-variant">
+                  RANGE {formatRangeKm(tier.rangeKm)}
+                </span>
+              </div>
+              {ceilingReached && !isInfiniteTier && (
+                <Link
+                  href="/exchange"
+                  className="mt-3 block w-full rounded-md border border-amber-400/60 bg-amber-500/10 py-1.5 text-center font-label text-[10px] tracking-[0.25em] text-amber-300 hover:bg-amber-500/20 transition"
+                >
+                  ⚡ 상위 티어 해금 → 더 높이
+                </Link>
+              )}
             </div>
           </GlassCard>
         </aside>
@@ -204,10 +268,13 @@ export default function FlightPage() {
 
       <MagneticButton
         onClick={boost}
-        tone="cyan"
-        className="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 rounded-lg px-8 py-3"
+        tone={ceilingReached ? "ghost" : "cyan"}
+        disabled={ceilingReached}
+        className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-30 rounded-lg px-8 py-3 ${
+          ceilingReached ? "opacity-50 cursor-not-allowed" : ""
+        }`}
       >
-        고도 가속
+        {ceilingReached ? `상한 도달 (${formatAltitudeKm(tier.altitudeKm)})` : "고도 가속"}
       </MagneticButton>
     </div>
   );

@@ -53,7 +53,7 @@ export function resolveTierLineItem(tier: Tier): CheckoutLineItem {
       currency: "usd",
       unit_amount: tier.usd * 100,
       product_data: {
-        name: `Aether Tactical — ${tier.label} (${tier.km}km)`,
+        name: `Aether Tactical — ${tier.label} (${tier.rangeKm.toLocaleString()}km)`,
         description: tier.description,
       },
     },

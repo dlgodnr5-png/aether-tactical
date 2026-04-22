@@ -63,13 +63,13 @@ export async function POST(req: NextRequest) {
       cancel_url: appUrl(`/exchange?checkout=cancel`),
       metadata: {
         tierUsd: String(tier.usd),
-        tierKm: String(tier.km),
+        tierKm: String(tier.rangeKm),
         tierId: tier.id,
       },
       payment_intent_data: {
         metadata: {
           tierUsd: String(tier.usd),
-          tierKm: String(tier.km),
+          tierKm: String(tier.rangeKm),
         },
       },
     });

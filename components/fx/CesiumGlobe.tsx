@@ -30,6 +30,8 @@ import {
   Cartesian2,
   Cartesian3,
   Color,
+  EasingFunction,
+  Math as CesiumMath,
   ScreenSpaceEventType,
   type Viewer as CesiumViewerType,
 } from "cesium";
@@ -61,12 +63,17 @@ export default function CesiumGlobe({
   const viewerRef = useRef<{ cesiumElement?: CesiumViewerType } | null>(null);
   const [outOfRange, setOutOfRange] = useState(false);
 
-  // Attach left-click handler to the viewer canvas.
+  // Double-click to set / re-set target. Single click is reserved for
+  // camera pan/rotate so the user can freely explore before committing.
   useEffect(() => {
     const viewer = viewerRef.current?.cesiumElement;
     if (!viewer) return;
 
     const handler = viewer.screenSpaceEventHandler;
+
+    // Disable Cesium's default "fly to entity on double-click" so our handler wins.
+    handler.removeInputAction(ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+
     handler.setInputAction(
       (movement: { position: Cartesian2 }) => {
         const pos = new Cartesian2(movement.position.x, movement.position.y);
@@ -85,12 +92,24 @@ export default function CesiumGlobe({
           return;
         }
         onPick(lat, lng);
+
+        // Auto-zoom to the new target for satisfying feedback
+        viewer.camera.flyTo({
+          destination: Cartesian3.fromDegrees(lng, lat, 2_000_000),
+          duration: 1.6,
+          easingFunction: EasingFunction.CUBIC_IN_OUT,
+          orientation: {
+            heading: CesiumMath.toRadians(0),
+            pitch: CesiumMath.toRadians(-55),
+            roll: 0,
+          },
+        });
       },
-      ScreenSpaceEventType.LEFT_CLICK,
+      ScreenSpaceEventType.LEFT_DOUBLE_CLICK,
     );
 
     return () => {
-      handler.removeInputAction(ScreenSpaceEventType.LEFT_CLICK);
+      handler.removeInputAction(ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
     };
   }, [onPick, maxRangeKm, carrierOrigin]);
 
@@ -137,14 +156,18 @@ export default function CesiumGlobe({
       </Viewer>
 
       {outOfRange && (
-        <div className="pointer-events-none absolute left-1/2 top-6 -translate-x-1/2 rounded-md bg-red-900/90 px-4 py-2 font-mono text-sm text-red-100 shadow-lg">
-          OUT OF RANGE — 반경 {maxRangeKm}km 초과
+        <div className="pointer-events-none absolute left-1/2 top-6 -translate-x-1/2 z-20 rounded-md bg-red-900/95 px-4 py-2 font-label tracking-[0.2em] text-sm text-red-100 shadow-[0_0_24px_rgba(239,68,68,0.5)] border border-red-400/60">
+          OUT OF RANGE — 반경 {maxRangeKm.toLocaleString()}km 초과
         </div>
       )}
 
+      <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded bg-black/70 px-2 py-1 font-label text-[10px] tracking-[0.25em] text-cyan-300">
+        더블클릭으로 타격 좌표 지정 · 드래그로 지구 회전
+      </div>
+
       {!CESIUM_ION_TOKEN && (
-        <div className="pointer-events-none absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 font-mono text-[10px] text-amber-300">
-          OFFLINE MODE — Ion 토큰 미설정 (위성 사진 비활성)
+        <div className="pointer-events-none absolute bottom-3 right-3 z-10 rounded bg-black/70 px-2 py-1 font-label text-[10px] text-amber-300">
+          OFFLINE MODE
         </div>
       )}
     </div>

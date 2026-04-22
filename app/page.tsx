@@ -75,8 +75,8 @@ export default function HomePage() {
   };
 
   // Pseudo mission preview numbers (replace with real calc in later phase)
-  const estReward = useMemo(() => 800 + Math.round(tier.km * 1.2), [tier.km]);
-  const difficulty = tier.km >= 1000 ? "★★★★" : tier.km >= 400 ? "★★★" : tier.km >= 10 ? "★★" : "★";
+  const estReward = useMemo(() => 800 + Math.round(tier.rangeKm * 1.2), [tier.rangeKm]);
+  const difficulty = tier.rangeKm >= 1000 ? "★★★★" : tier.rangeKm >= 400 ? "★★★" : tier.rangeKm >= 10 ? "★★" : "★";
 
   // Unlocked jet count (starter + purchased — stub: only free one for now)
   const unlockedJets = 1; // TODO: persist unlocked jet IDs
@@ -258,7 +258,7 @@ export default function HomePage() {
                         DISTANCE
                       </p>
                       <p className="mt-0.5 font-headline text-lg text-cyan-300 tabular-nums">
-                        <NumberTicker value={tier.km} />
+                        <NumberTicker value={tier.rangeKm} />
                         <span className="text-[9px] opacity-60 ml-0.5">km</span>
                       </p>
                     </div>
@@ -342,8 +342,8 @@ export default function HomePage() {
               href="/exchange"
               icon="radar"
               label="티어"
-              value={tier.km >= 1000 ? `${tier.km / 1000}K km` : `${tier.km}km`}
-              highlight={tier.km > 5}
+              value={tier.rangeKm >= 1000 ? `${tier.rangeKm / 1000}K km` : `${tier.rangeKm}km`}
+              highlight={tier.rangeKm > 5}
             />
             <QuickAction
               href="/strike"

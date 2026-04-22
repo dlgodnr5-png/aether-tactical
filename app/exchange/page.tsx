@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useTierStore } from "@/store/slices/tierSlice";
-import { TIERS, activeTier, type Tier } from "@/lib/tiers";
+import { TIERS, activeTier, formatAltitudeKm, formatRangeKm, type Tier } from "@/lib/tiers";
 import GlassCard from "@/components/fx/GlassCard";
 import MagneticButton from "@/components/fx/MagneticButton";
 import { bootTimeline } from "@/lib/anime-presets";
@@ -70,10 +70,10 @@ function ExchangeInner() {
     if (status === "success" && Number.isFinite(tierUsd)) {
       const tier = TIERS.find((t) => t.usd === tierUsd);
       if (tier) {
-        unlockTier(tier.km);
+        unlockTier(tier.rangeKm);
         setBanner({
           kind: "ok",
-          text: `✅ 결제 완료 — ${tier.label} (${tier.km}km) 해금`,
+          text: `✅ 결제 완료 — ${tier.label} 해금 (고도 ${formatAltitudeKm(tier.altitudeKm)} / 반경 ${formatRangeKm(tier.rangeKm)})`,
         });
       }
       // Clear query params so refresh doesn't re-run
@@ -87,8 +87,8 @@ function ExchangeInner() {
   const purchase = async (tier: Tier) => {
     if (tier.usd === 0) {
       // Free tier instant unlock
-      unlockTier(tier.km);
-      setBanner({ kind: "ok", text: `${tier.label} (${tier.km}km) 활성화` });
+      unlockTier(tier.rangeKm);
+      setBanner({ kind: "ok", text: `${tier.label} 활성화 (고도 ${formatAltitudeKm(tier.altitudeKm)} / 반경 ${formatRangeKm(tier.rangeKm)})` });
       return;
     }
     setPending(tier.id);
@@ -149,9 +149,12 @@ function ExchangeInner() {
                 <span className="font-headline text-2xl font-semibold text-lime-400">
                   {currentTier.label}
                 </span>
-                <span className="font-label text-xs tabular-nums text-lime-300">
-                  {currentTier.km.toLocaleString()}km
-                </span>
+                <div className="flex items-baseline gap-3 font-label text-xs tabular-nums">
+                  <span className="text-on-surface-variant">고도</span>
+                  <span className="text-lime-300">{formatAltitudeKm(currentTier.altitudeKm)}</span>
+                  <span className="text-on-surface-variant">/ 반경</span>
+                  <span className="text-lime-300">{formatRangeKm(currentTier.rangeKm)}</span>
+                </div>
               </div>
               <p className="mt-1 font-label text-[11px] text-on-surface-variant">
                 {currentTier.description}
@@ -163,8 +166,8 @@ function ExchangeInner() {
         {/* Tiers */}
         <section ref={tiersRef} className="space-y-3">
           {TIERS.map((tier) => {
-            const isActive = tier.km === currentTier.km;
-            const isUpgrade = tier.km > currentTier.km;
+            const isActive = tier.rangeKm === currentTier.rangeKm;
+            const isUpgrade = tier.rangeKm > currentTier.rangeKm;
             const isPending = pending === tier.id;
             return (
               <GlassCard
@@ -184,9 +187,12 @@ function ExchangeInner() {
                     </span>
                   )}
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg border border-cyan-400/40 bg-surface-container-lowest flex items-center justify-center">
-                      <span className="font-headline text-lg font-bold text-cyan-300 tabular-nums">
-                        {tier.km >= 1000 ? `${tier.km / 1000}K` : tier.km}
+                    <div className="w-14 h-14 rounded-lg border border-cyan-400/40 bg-surface-container-lowest flex flex-col items-center justify-center">
+                      <span className="font-headline text-sm font-bold text-cyan-300 tabular-nums leading-none">
+                        {formatRangeKm(tier.rangeKm).replace(" km", "")}
+                      </span>
+                      <span className="font-label text-[8px] tracking-[0.2em] text-on-surface-variant mt-0.5">
+                        {tier.rangeKm >= 1000 ? "KM" : "KM"}
                       </span>
                     </div>
                     <div className="flex-1">
@@ -194,7 +200,7 @@ function ExchangeInner() {
                         {tier.label}
                       </p>
                       <p className="font-label text-[11px] tracking-[0.2em] text-on-surface-variant">
-                        반경 {tier.km.toLocaleString()}km
+                        고도 {formatAltitudeKm(tier.altitudeKm)} · 반경 {formatRangeKm(tier.rangeKm)}
                       </p>
                     </div>
                     <MagneticButton
