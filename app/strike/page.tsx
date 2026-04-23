@@ -65,6 +65,9 @@ export default function StrikePage() {
   const [audioOn, setAudioOn] = useState(false);
   const [flashColor, setFlashColor] = useState<"hit" | "miss" | null>(null);
   const [reticle, setReticle] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [rage, setRage] = useState(0);
+  const [isRaging, setIsRaging] = useState(false);
+  const [radioChatter, setRadioChatter] = useState<string | null>(null);
   const nextIdRef = useRef(1);
 
   // Drifting target zone (the real strike coordinate — it jitters to add skill)
@@ -167,6 +170,15 @@ export default function StrikePage() {
           const reward = Math.round(HIT_BASE_REWARD * proximity);
           addCredits(reward);
           setScore((s) => s + reward);
+          
+          // Radio chatter selection
+          const hitMessages = ["TARGET NEUTRALIZED", "SPLASH ONE", "DIRECT HIT", "OBJECTIVE DESTROYED", "CONFIRMED KILL"];
+          setRadioChatter(hitMessages[Math.floor(Math.random() * hitMessages.length)]);
+          window.setTimeout(() => setRadioChatter(null), 1500);
+        } else {
+          const missMessages = ["TARGET MISSED", "RE-ENGAGE", "NEGATIVE CONTACT", "ADJUST FIRE"];
+          setRadioChatter(missMessages[Math.floor(Math.random() * missMessages.length)]);
+          window.setTimeout(() => setRadioChatter(null), 1000);
         }
 
 
@@ -182,10 +194,30 @@ export default function StrikePage() {
     setReticle({ x: e.clientX, y: e.clientY });
   }, []);
 
+  const engageRageMode = useCallback(() => {
+    if (rage < 100 || isRaging) return;
+    setIsRaging(true);
+    setRage(0);
+    
+    // Massive bombardment: 15 missiles in rapid succession
+    let count = 0;
+    const interval = window.setInterval(() => {
+      const rx = reticle.x + (Math.random() - 0.5) * 200;
+      const ry = reticle.y + (Math.random() - 0.5) * 200;
+      launchMissile(rx, ry);
+      count++;
+      if (count >= 15) {
+        window.clearInterval(interval);
+        window.setTimeout(() => setIsRaging(false), 2000);
+      }
+    }, 100);
+  }, [rage, isRaging, reticle, launchMissile]);
+
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       setReticle({ x: e.clientX, y: e.clientY });
       launchMissile(e.clientX, e.clientY);
+      setRage(r => Math.min(100, r + 5));
     },
     [launchMissile],
   );
@@ -207,11 +239,16 @@ export default function StrikePage() {
       if (e.code === "Space") {
         e.preventDefault();
         launchMissile(reticle.x, reticle.y);
+        setRage(r => Math.min(100, r + 5));
+      }
+      if (e.code === "KeyE") {
+        e.preventDefault();
+        engageRageMode();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [launchMissile, reticle]);
+  }, [launchMissile, reticle, engageRageMode]);
 
   const accuracy = shots === 0 ? 0 : Math.round((hits / shots) * 100);
 
@@ -291,13 +328,28 @@ export default function StrikePage() {
         <Explosion key={e.id} x={e.x} y={e.y} isHit={e.isHit} />
       ))}
 
-      {/* Screen flash (hit = green, miss = red) */}
+      {/* Screen flash (hit = white/green, miss = red) */}
       {flashColor && (
         <div
-          className={`pointer-events-none fixed inset-0 z-40 ${
-            flashColor === "hit" ? "bg-lime-400/25" : "bg-red-500/25"
+          className={`pointer-events-none fixed inset-0 z-50 animate-in fade-in duration-75 ${
+            flashColor === "hit" ? "bg-white/60" : "bg-red-500/25"
           }`}
         />
+      )}
+      
+      {/* Radio Chatter Overlay */}
+      {radioChatter && (
+        <div className="pointer-events-none fixed top-1/3 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="bg-black/60 backdrop-blur-sm border-x-4 border-cyan-500 px-6 py-2">
+            <p className="font-label text-xl tracking-[0.4em] text-cyan-400 text-glow">
+              {radioChatter}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {isRaging && (
+        <div className="pointer-events-none fixed inset-0 z-40 bg-orange-500/10 animate-pulse" />
       )}
 
       {/* Target data panel */}
@@ -371,6 +423,28 @@ export default function StrikePage() {
           </span>
           {audioOn ? "AUDIO LIVE" : "ENGAGE AUDIO"}
         </button>
+
+        {/* Rage bar */}
+        <div className="pt-2">
+          <p className="font-label text-[9px] tracking-[0.2em] text-orange-400 mb-1 flex justify-between">
+            <span>RAGE CAPACITY</span>
+            <span>{Math.floor(rage)}%</span>
+          </p>
+          <div className="h-2 w-full rounded-full bg-surface-container-lowest overflow-hidden border border-orange-900/30">
+            <div 
+              className={`h-full bg-gradient-to-r from-orange-600 to-red-500 transition-all duration-300 ${rage >= 100 ? "animate-pulse shadow-[0_0_10px_#f97316]" : ""}`}
+              style={{ width: `${rage}%` }}
+            />
+          </div>
+          {rage >= 100 && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); engageRageMode(); }}
+              className="w-full mt-2 bg-orange-600 hover:bg-orange-500 text-white font-headline text-[10px] py-1 rounded-md animate-bounce tracking-widest"
+            >
+              RAGE READY (E키)
+            </button>
+          )}
+        </div>
       </aside>
 
       {/* Action buttons (bottom nav pointer-events enabled on button zone) */}
@@ -381,6 +455,11 @@ export default function StrikePage() {
         <div className="font-label text-[10px] tracking-[0.3em] text-on-surface-variant px-3 py-2 rounded bg-black/60">
           SPACE / 클릭 = 발사 (-{MISSILE_COST}CR) · 적중 시 +{HIT_BASE_REWARD}CR
         </div>
+        <Link href="/briefing">
+          <MagneticButton tone="ghost" className="rounded-lg px-6 py-3">
+            ⬅ 브리핑
+          </MagneticButton>
+        </Link>
         <Link href="/mission">
           <MagneticButton tone="ghost" className="rounded-lg px-6 py-3">
             ⚔ 3D 작전
@@ -443,11 +522,31 @@ function Explosion({ x, y, isHit }: { x: number; y: number; isHit: boolean }) {
   const color = isHit
     ? "radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(167,243,208,0.85) 18%, rgba(74,222,128,0.75) 40%, rgba(22,163,74,0.35) 70%, transparent 95%)"
     : "radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,220,140,0.85) 18%, rgba(255,120,40,0.75) 40%, rgba(200,40,20,0.35) 70%, transparent 95%)";
+  
+  // Debris particles
+  const debris = Array.from({ length: 12 }).map((_, i) => ({
+    id: i,
+    angle: (Math.PI * 2 * i) / 12 + Math.random(),
+    dist: 100 + Math.random() * 150,
+    delay: Math.random() * 0.2
+  }));
+
   return (
     <div
       className="pointer-events-none absolute z-30"
       style={{ left: x, top: y, width: 0, height: 0 }}
     >
+      {/* Primary Shockwave */}
+      <div
+        className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-white/40"
+        style={{
+          width: 200,
+          height: 200,
+          animation: `shockwave ${EXPLOSION_LIFE_MS}ms ease-out forwards`,
+        }}
+      />
+      
+      {/* Inner Core */}
       <div
         className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
         style={{
@@ -457,10 +556,26 @@ function Explosion({ x, y, isHit }: { x: number; y: number; isHit: boolean }) {
           animation: `explosionGrow ${EXPLOSION_LIFE_MS}ms ease-out forwards`,
         }}
       />
+
+      {/* Debris */}
+      {debris.map((d) => (
+        <div
+          key={d.id}
+          className="absolute w-1 h-1 bg-white rounded-full shadow-[0_0_8px_white]"
+          style={{
+            // @ts-expect-error custom CSS vars
+            "--tx": `${Math.cos(d.angle) * d.dist}px`,
+            "--ty": `${Math.sin(d.angle) * d.dist}px`,
+            animation: `debrisFall ${EXPLOSION_LIFE_MS}ms cubic-bezier(0.1, 0.4, 0.3, 1) forwards`,
+            animationDelay: `${d.delay}s`,
+          }}
+        />
+      ))}
+
       {!isHit && (
         <div
           className="absolute -translate-x-1/2 -translate-y-1/2 font-headline font-bold text-red-400 text-lg text-glow"
-          style={{ top: -20 }}
+          style={{ top: -40 }}
         >
           MISS
         </div>
@@ -468,16 +583,24 @@ function Explosion({ x, y, isHit }: { x: number; y: number; isHit: boolean }) {
       {isHit && (
         <div
           className="absolute -translate-x-1/2 -translate-y-1/2 font-headline font-bold text-lime-400 text-lg text-glow"
-          style={{ top: -20 }}
+          style={{ top: -40 }}
         >
-          HIT +
+          HIT
         </div>
       )}
       <style jsx>{`
         @keyframes explosionGrow {
           0% { transform: translate(-50%, -50%) scale(0.1); opacity: 1; }
-          40% { transform: translate(-50%, -50%) scale(1.6); opacity: 1; }
+          30% { transform: translate(-50%, -50%) scale(1.6); opacity: 1; }
           100% { transform: translate(-50%, -50%) scale(2.8); opacity: 0; }
+        }
+        @keyframes shockwave {
+          0% { transform: translate(-50%, -50%) scale(0.1); opacity: 0.8; }
+          100% { transform: translate(-50%, -50%) scale(4); opacity: 0; }
+        }
+        @keyframes debrisFall {
+          0% { transform: translate(0, 0) scale(1); opacity: 1; }
+          100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
         }
       `}</style>
     </div>

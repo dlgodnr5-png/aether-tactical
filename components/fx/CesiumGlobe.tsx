@@ -113,6 +113,23 @@ export default function CesiumGlobe({
     };
   }, [onPick, maxRangeKm, carrierOrigin]);
 
+  // Fly to target when it changes from props (e.g. via search)
+  useEffect(() => {
+    const viewer = viewerRef.current?.cesiumElement;
+    if (!viewer || !target) return;
+    
+    viewer.camera.flyTo({
+      destination: Cartesian3.fromDegrees(target.lng, target.lat, 2_000_000),
+      duration: 1.6,
+      easingFunction: EasingFunction.CUBIC_IN_OUT,
+      orientation: {
+        heading: CesiumMath.toRadians(0),
+        pitch: CesiumMath.toRadians(-55),
+        roll: 0,
+      },
+    });
+  }, [target]);
+
   const originPos = Cartesian3.fromDegrees(carrierOrigin.lng, carrierOrigin.lat);
   const targetPos = target
     ? Cartesian3.fromDegrees(target.lng, target.lat)

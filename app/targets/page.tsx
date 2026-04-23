@@ -41,6 +41,8 @@ export default function TargetsPage() {
   const tier = activeTier(unlockedKm);
 
   const [lockPulse, setLockPulse] = useState(false);
+  const [addressSearch, setAddressSearch] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const prevTargetRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -64,6 +66,37 @@ export default function TargetsPage() {
     [setTarget],
   );
 
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addressSearch.trim()) return;
+    setIsSearching(true);
+    
+    // For a real app, use a geocoding API. 
+    // Here we'll use a simple mock that shifts coordinates slightly or 
+    // we could try to use Cesium's internal geocoder if accessible, 
+    // but we'll simulate it for now.
+    try {
+      // Simulation of geocoding
+      await new Promise(r => setTimeout(r, 800));
+      // Random coordinates for "search effect" in prototype
+      // In a real scenario, this would call Nominatim or Google Maps
+      const mockLat = 37.5665 + (Math.random() - 0.5) * 5;
+      const mockLng = 126.9780 + (Math.random() - 0.5) * 5;
+      
+      onPick(mockLat, mockLng);
+      // We also update the specific address name from search
+      setTarget({
+        lat: mockLat,
+        lng: mockLng,
+        address: `${addressSearch} (TARGET LOCATED)`,
+      });
+      
+      setIsSearching(false);
+    } catch (err) {
+      setIsSearching(false);
+    }
+  };
+
   return (
     // Full-screen globe stage: between TopBar (h-16 = 64px) and BottomNav (~80px)
     <div className="fixed inset-0 top-16 bottom-[76px] bg-[#050810]">
@@ -82,8 +115,8 @@ export default function TargetsPage() {
         <TargetLockRing active={lockPulse} />
       </div>
 
-      {/* TOP-LEFT: mission heading + active tier */}
-      <div className="pointer-events-none absolute top-3 left-3 z-10 max-w-sm">
+      {/* TOP-LEFT: mission heading + active tier + SEARCH */}
+      <div className="pointer-events-none absolute top-3 left-3 z-10 max-w-sm space-y-3">
         <div className="rounded-lg border border-cyan-400/40 bg-black/75 backdrop-blur px-3 py-2">
           <p className="font-label text-[9px] tracking-[0.3em] text-cyan-400">
             RECON // TARGET ACQUISITION
@@ -98,10 +131,33 @@ export default function TargetsPage() {
             {" · "}
             반경 <span className="text-lime-400 tabular-nums">{formatRangeKm(tier.rangeKm)}</span>
           </p>
-          <p className="mt-1 font-label text-[9px] tracking-[0.25em] text-amber-300">
-            📍 항모 {CARRIER_ORIGIN.lat.toFixed(1)}°N, {CARRIER_ORIGIN.lng.toFixed(1)}°E · 태평양
-          </p>
         </div>
+
+        {/* Address Search Input */}
+        <form 
+          onSubmit={handleSearch}
+          className="pointer-events-auto flex gap-2 w-full"
+        >
+          <div className="relative flex-1 group">
+            <input 
+              type="text"
+              value={addressSearch}
+              onChange={(e) => setAddressSearch(e.target.value)}
+              placeholder="타격 대상 주소 입력..."
+              className="w-full bg-black/60 border border-cyan-500/30 rounded-lg px-4 py-2 text-xs font-label text-cyan-100 placeholder:text-cyan-900 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
+            />
+            <div className="absolute inset-0 rounded-lg bg-cyan-400/5 opacity-0 group-focus-within:opacity-100 pointer-events-none transition-opacity" />
+          </div>
+          <button 
+            type="submit"
+            disabled={isSearching}
+            className="bg-cyan-500/20 hover:bg-cyan-500/40 border border-cyan-400/50 rounded-lg px-3 py-2 text-cyan-400 transition-colors disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-[18px]">
+              {isSearching ? "sync" : "search"}
+            </span>
+          </button>
+        </form>
       </div>
 
       {/* TOP-RIGHT: selected target info */}
@@ -131,7 +187,7 @@ export default function TargetsPage() {
       <div className="pointer-events-none absolute bottom-3 inset-x-3 z-10 flex justify-center">
         {target ? (
           <Link
-            href="/exchange"
+            href="/briefing"
             className="pointer-events-auto group relative overflow-hidden rounded-xl px-8 py-4 bg-gradient-to-r from-lime-500 via-emerald-500 to-cyan-500 text-black font-headline text-base font-bold tracking-[0.25em] shadow-[0_0_32px_rgba(163,230,53,0.55)] hover:shadow-[0_0_48px_rgba(163,230,53,0.8)] active:scale-[0.98] transition-all"
           >
             <span className="relative z-10 flex items-center gap-2">
