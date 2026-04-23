@@ -248,7 +248,6 @@ function MissionInner({
     velocityRef.current.add(thrust);
 
     // === Flight Physics (Bank-to-turn + Inertia) ===
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(jetGroup.current.quaternion);
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(jetGroup.current.quaternion);
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(jetGroup.current.quaternion);
 
