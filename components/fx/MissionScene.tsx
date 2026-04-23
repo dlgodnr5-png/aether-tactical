@@ -247,153 +247,68 @@ function MissionInner({
     const thrust = forward.clone().multiplyScalar(baseThrust * s.throttle * dt);
     velocityRef.current.add(thrust);
 
-    const gravityMag = tier === 3 ? 1.5 : tier === 2 ? 5 : 9;
+    // === Flight Physics (Bank-to-turn + Inertia) ===
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(jetGroup.current.quaternion);
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(jetGroup.current.quaternion);
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(jetGroup.current.quaternion);
+
+    // Thrust based on throttle
+    const thrustMag = 45 * s.throttle;
+    velocityRef.current.addScaledVector(forward, thrustMag * dt);
+
+    // Banking logic: rolling causes lateral lift (turn)
+    const rollAmount = -angularVelRef.current.roll; 
+    const turnStrength = velocityRef.current.length() * 0.4;
+    const turnVec = right.clone().multiplyScalar(rollAmount * turnStrength * dt);
+    velocityRef.current.add(turnVec);
+
+    // Gravity & Lift
+    const gravityMag = tier === 3 ? 1.5 : tier === 2 ? 5 : 9.8;
     velocityRef.current.y -= gravityMag * dt;
 
-    const dragCoef = 0.006;
-    const speedSq = velocityRef.current.lengthSq();
-    const dragForce = velocityRef.current
-      .clone()
-      .multiplyScalar(-dragCoef * Math.sqrt(speedSq) * dt);
-    velocityRef.current.add(dragForce);
-
     const pitchRad = jetGroup.current.rotation.x;
-    const lift = Math.sin(pitchRad) * velocityRef.current.length() * 0.35 * dt;
-    velocityRef.current.y += lift;
+    const liftMag = Math.cos(jetGroup.current.rotation.z) * velocityRef.current.length() * 0.42;
+    velocityRef.current.y += liftMag * dt;
 
-    s.throttle += (0.68 - s.throttle) * Math.min(1, dt * 0.7);
-    s.throttle = Math.max(0.35, Math.min(1, s.throttle));
+    // Drag (increased at high speeds)
+    const dragCoef = 0.008;
+    velocityRef.current.multiplyScalar(1 - dragCoef * velocityRef.current.length() * dt);
 
     jetGroup.current.position.addScaledVector(velocityRef.current, dt);
 
-    // === Altitude + distance ===
-    totalDistanceRef.current += velocityRef.current.length() * dt;
-    const tierInfo = TIER_ALTITUDES[tier];
-    const altBoost = Math.max(0, jetGroup.current.position.y) * 400;
-    s.altitude = Math.min(
-      tierInfo.end,
-      tierInfo.start + altBoost + (totalDistanceRef.current / 4500) * (tierInfo.end - tierInfo.start) * 0.8
-    );
-    s.altitude = Math.max(tierInfo.start, s.altitude);
-    s.distanceToTarget = Math.max(0, 100 * (1 - totalDistanceRef.current / targetDistanceRef.current));
-    s.speed = velocityRef.current.length();
-    s.pitchDeg = THREE.MathUtils.radToDeg(jetGroup.current.rotation.x);
-    s.rollDeg = THREE.MathUtils.radToDeg(jetGroup.current.rotation.z);
-    s.yawDeg = THREE.MathUtils.radToDeg(jetGroup.current.rotation.y);
+    // === Dynamic Camera Juice (Shake & G-Force) ===
+    const shakeRef = useRef(0);
+    // Use speed and explosions to drive shake
+    const speedShake = Math.max(0, (s.speed - 25) * 0.02);
+    const totalShake = shakeRef.current + speedShake;
+    if (shakeRef.current > 0) shakeRef.current *= 0.9; // decay
 
-    // === Border crossing ===
-    if (!borderCrossedRef.current && tier >= 2 && s.distanceToTarget < 70) {
-      borderCrossedRef.current = true;
-      onEventRef.current?.({ type: "border-crossed" });
-    }
-
-    // === Spawn loop ===
-    spawnTimerRef.current -= dt;
-    if (spawnTimerRef.current <= 0) {
-      spawnObstacle();
-      const base = tier === 3 ? 0.85 : tier === 2 ? 1.2 : 1.9;
-      // Stealth delays enemy acquisition: 0.5 = neutral, 0.98 = ~2x longer gaps
-      const stealthMul = 1 + (specs.stealth - 0.5);
-      spawnTimerRef.current = (base + Math.random() * 0.9) * stealthMul;
-    }
-
-    const jetPos = jetGroup.current.position;
-
-    // === Obstacle update (in-place mutation, no setState) ===
-    const obstacles = obstaclesRef.current;
-    for (let i = obstacles.length - 1; i >= 0; i--) {
-      const o = obstacles[i];
-      o.position.addScaledVector(o.velocity, dt);
-      const d = o.position.distanceTo(jetPos);
-      if (d < 2.4) {
-        s.hp -= o.type === "asteroid" ? 22 : 16;
-        onEventRef.current?.({ type: "hp-loss", hp: Math.max(0, s.hp) });
-        explosionsRef.current.push({
-          id: nextIdRef.current++,
-          position: o.position.clone(),
-          t: 0,
-        });
-        obstacles.splice(i, 1);
-        continue;
-      }
-      if (d > 260) obstacles.splice(i, 1);
-    }
-
-    // === Missile update + collisions ===
-    const missiles = missilesRef.current;
-    for (let i = missiles.length - 1; i >= 0; i--) {
-      const m = missiles[i];
-      m.position.addScaledVector(m.velocity, dt);
-      let hit = false;
-      for (let j = obstacles.length - 1; j >= 0; j--) {
-        const o = obstacles[j];
-        if (m.position.distanceTo(o.position) < 3.8) {
-          o.hp -= specs.damageMul;
-          missiles.splice(i, 1);
-          hit = true;
-          if (o.hp <= 0) {
-            explosionsRef.current.push({
-              id: nextIdRef.current++,
-              position: o.position.clone(),
-              t: 0,
-            });
-            s.hitsLanded++;
-            s.score += o.type === "asteroid" ? 300 : o.type === "enemy" ? 250 : 100;
-            onEventRef.current?.({ type: "hit", obstacleType: o.type });
-            obstacles.splice(j, 1);
-          }
-          break;
-        }
-      }
-      if (hit) continue;
-      if (m.position.distanceTo(jetPos) > 300) missiles.splice(i, 1);
-    }
-
-    // === Explosions ===
-    const explosions = explosionsRef.current;
-    for (let i = explosions.length - 1; i >= 0; i--) {
-      explosions[i].t += dt;
-      if (explosions[i].t >= 1.2) explosions.splice(i, 1);
-    }
-
-    // === Trigger re-render ONLY when entity counts change ===
-    const counts = {
-      o: obstacles.length,
-      m: missiles.length,
-      e: explosions.length,
-    };
-    const last = lastCountsRef.current;
-    if (counts.o !== last.o || counts.m !== last.m || counts.e !== last.e) {
-      lastCountsRef.current = counts;
-      setRenderTick((t) => t + 1);
-    }
-
-    // === Mission complete ===
-    if (!s.missionComplete && s.distanceToTarget <= 0) {
-      s.missionComplete = true;
-      missionEndedRef.current = true;
-      onEventRef.current?.({ type: "bomb-dropped" });
-      window.setTimeout(() => onEventRef.current?.({ type: "mission-complete" }), 1400);
-    }
-
-    // === Camera ===
     if (cockpitView) {
       const cockpitOffset = new THREE.Vector3(0, 0.55, 0.9).applyQuaternion(jetGroup.current.quaternion);
-      camera.position.copy(jetGroup.current.position).add(cockpitOffset);
+      const shakeOffset = new THREE.Vector3(
+        (Math.random() - 0.5) * totalShake,
+        (Math.random() - 0.5) * totalShake,
+        0
+      );
+      camera.position.copy(jetGroup.current.position).add(cockpitOffset).add(shakeOffset);
       const lookTarget = jetGroup.current.position.clone().add(forward.clone().multiplyScalar(40));
       camera.lookAt(lookTarget);
       camera.up.set(0, 1, 0).applyQuaternion(jetGroup.current.quaternion);
     } else {
       const chaseOffset = new THREE.Vector3(0, 2.4, 10).applyQuaternion(jetGroup.current.quaternion);
       const desired = jetGroup.current.position.clone().add(chaseOffset);
-      camera.position.lerp(desired, Math.min(1, dt * 2.4));
+      camera.position.lerp(desired, Math.min(1, dt * 3.0));
+      
+      // Look slightly ahead with a tiny bit of random jitter
+      const jitterX = (Math.random() - 0.5) * totalShake * 0.5;
+      const jitterY = (Math.random() - 0.5) * totalShake * 0.5;
       camera.lookAt(
-        jetGroup.current.position.x + forward.x * 4,
-        jetGroup.current.position.y + forward.y * 4 + 0.3,
+        jetGroup.current.position.x + forward.x * 4 + jitterX,
+        jetGroup.current.position.y + forward.y * 4 + 0.3 + jitterY,
         jetGroup.current.position.z + forward.z * 4
       );
-      camera.up.set(0, 1, 0);
     }
+
 
     onStateChangeRef.current?.({ ...s });
   });

@@ -8,35 +8,8 @@ import MagneticButton from "@/components/fx/MagneticButton";
 import FleetShowcase from "@/components/fx/FleetShowcase";
 import { bootTimeline } from "@/lib/anime-presets";
 import { audioBus } from "@/lib/audio";
+import { PLANES } from "@/lib/planes";
 import { animate, stagger } from "animejs";
-
-type JetVariant = "fighter" | "bomber" | "interceptor" | "multirole" | "support";
-
-interface Plane {
-  id: number;
-  slug: string; // used as image filename key: /images/fleet/{slug}.jpg
-  name: string;
-  origin: string;
-  manufacturer: string;
-  generation: string;
-  role: string;
-  speed: string;
-  stealth: string;
-  payload: string;
-  range: string;
-  engine: string;
-  variant: JetVariant;
-  gradient: string;
-}
-
-// 2026년 기준 세계 최신 전투기 Top 5 (스텔스/성능 기준)
-const PLANES: Plane[] = [
-  { id: 0, slug: "f35",  name: "F-35 LIGHTNING II",  origin: "USA",     manufacturer: "LOCKHEED MARTIN", generation: "5TH GEN", role: "MULTI-ROLE STEALTH", speed: "MACH 1.6",  stealth: "VERY HIGH", payload: "4x AIM-120 · 18,000 LB",   range: "2,220 KM",  engine: "P&W F135 · 43K LBF",    variant: "multirole", gradient: "from-[#102040] via-[#1a3050] to-[#080d22]" },
-  { id: 1, slug: "f22",  name: "F-22 RAPTOR",        origin: "USA",     manufacturer: "LOCKHEED MARTIN", generation: "5TH GEN", role: "AIR DOMINANCE",      speed: "MACH 2.25", stealth: "EXTREME",   payload: "6x AIM-120 INTERNAL",      range: "2,960 KM",  engine: "2x P&W F119 · 35K LBF", variant: "fighter",   gradient: "from-[#0a1a30] via-[#112542] to-[#040912]" },
-  { id: 2, slug: "j20",  name: "J-20 MIGHTY DRAGON", origin: "CHINA",   manufacturer: "CHENGDU",         generation: "5TH GEN", role: "AIR SUPERIORITY",    speed: "MACH 2.0",  stealth: "HIGH",      payload: "6x PL-15 INTERNAL",        range: "5,500 KM",  engine: "WS-15 · 40K LBF",       variant: "fighter",   gradient: "from-[#0a1430] via-[#0d2050] to-[#04081a]" },
-  { id: 3, slug: "kf21", name: "KF-21 BORAMAE",      origin: "KOREA",   manufacturer: "KAI",             generation: "4.5 GEN", role: "MULTI-ROLE FIGHTER", speed: "MACH 1.81", stealth: "MEDIUM",    payload: "10x HARDPOINTS",           range: "2,900 KM",  engine: "2x GE F414 · 22K LBF",  variant: "multirole", gradient: "from-[#0a2040] via-[#1a3868] to-[#050920]" },
-  { id: 4, slug: "kaan", name: "KAAN",               origin: "TÜRKIYE", manufacturer: "TAI",             generation: "5TH GEN", role: "NEXT-GEN STEALTH",   speed: "MACH 2.0",  stealth: "HIGH",      payload: "INTERNAL BAY + 8 EXT",     range: "2,000+ KM", engine: "2x GE F110 (INTERIM)",  variant: "fighter",   gradient: "from-[#1a0e30] via-[#261850] to-[#080418]" },
-];
 
 export default function FleetPage() {
   const router = useRouter();

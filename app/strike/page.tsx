@@ -153,7 +153,12 @@ export default function StrikePage() {
         if (audioOn) engineAudio.explosion();
 
         setFlashColor(isHit ? "hit" : "miss");
-        window.setTimeout(() => setFlashColor(null), 160);
+        // Shake the screen if hit
+        if (isHit) {
+          document.body.classList.add("shake-intense");
+          window.setTimeout(() => document.body.classList.remove("shake-intense"), 400);
+        }
+        window.setTimeout(() => setFlashColor(null), 250);
 
         if (isHit) {
           setHits((h) => h + 1);
@@ -163,6 +168,7 @@ export default function StrikePage() {
           addCredits(reward);
           setScore((s) => s + reward);
         }
+
 
         window.setTimeout(() => {
           setExplosions((list) => list.filter((e) => e.id !== expId));

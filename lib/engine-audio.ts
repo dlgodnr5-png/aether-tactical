@@ -59,66 +59,65 @@ class EngineAudio {
 
     // --- Master chain: layers → compressor → master gain → destination ---
     this.masterGain = ctx.createGain();
-    this.masterGain.gain.value = 0.24;
+    this.masterGain.gain.value = 0.28;
     this.compressor = ctx.createDynamicsCompressor();
-    this.compressor.threshold.value = -14;
-    this.compressor.knee.value = 24;
-    this.compressor.ratio.value = 4;
-    this.compressor.attack.value = 0.008;
-    this.compressor.release.value = 0.18;
+    this.compressor.threshold.value = -12;
+    this.compressor.knee.value = 30;
+    this.compressor.ratio.value = 12;
+    this.compressor.attack.value = 0.003;
+    this.compressor.release.value = 0.25;
     this.compressor.connect(this.masterGain);
     this.masterGain.connect(ctx.destination);
 
-    // --- Sub-bass drone ---
+    // --- Sub-bass drone (Deep chest rumble) ---
     this.subGain = ctx.createGain();
-    this.subGain.gain.value = 0.45;
+    this.subGain.gain.value = 0.55;
     this.subOsc = ctx.createOscillator();
     this.subOsc.type = "sine";
-    this.subOsc.frequency.value = 42;
+    this.subOsc.frequency.value = 38;
     this.subOsc.connect(this.subGain);
     this.subGain.connect(this.compressor);
 
-    // --- Whine (two detuned saws) ---
+    // --- Whine (Turbine scream) ---
     this.whineGain = ctx.createGain();
-    this.whineGain.gain.value = 0.22;
+    this.whineGain.gain.value = 0.25;
     this.whineGain.connect(this.compressor);
 
     this.whineOsc1 = ctx.createOscillator();
     this.whineOsc1.type = "sawtooth";
-    this.whineOsc1.frequency.value = 140;
+    this.whineOsc1.frequency.value = 135;
     this.whineOsc1.connect(this.whineGain);
 
     this.whineOsc2 = ctx.createOscillator();
     this.whineOsc2.type = "sawtooth";
-    this.whineOsc2.frequency.value = 146;
+    this.whineOsc2.frequency.value = 142;
     this.whineOsc2.connect(this.whineGain);
 
-    // --- High harmonic scream (filtered square, 3x whine) ---
+    // --- High harmonic scream (Jet whistle) ---
     this.screamFilter = ctx.createBiquadFilter();
     this.screamFilter.type = "bandpass";
-    this.screamFilter.frequency.value = 1800;
-    this.screamFilter.Q.value = 3;
+    this.screamFilter.frequency.value = 2200;
+    this.screamFilter.Q.value = 4;
     this.screamGain = ctx.createGain();
-    this.screamGain.gain.value = 0.08;
+    this.screamGain.gain.value = 0.12;
     this.screamOsc = ctx.createOscillator();
     this.screamOsc.type = "square";
-    this.screamOsc.frequency.value = 420;
+    this.screamOsc.frequency.value = 440;
     this.screamOsc.connect(this.screamFilter);
     this.screamFilter.connect(this.screamGain);
     this.screamGain.connect(this.compressor);
 
-    // --- Roar (pink noise via filtered white noise) ---
+    // --- Roar (Pink noise with random jitter for wind/exhaust) ---
     const sampleRate = ctx.sampleRate;
     const noiseBuffer = ctx.createBuffer(1, sampleRate * 2, sampleRate);
     const data = noiseBuffer.getChannelData(0);
-    // Approximate pink noise via simple 1-pole LP cascade
     let b0 = 0, b1 = 0, b2 = 0;
     for (let i = 0; i < data.length; i++) {
       const w = Math.random() * 2 - 1;
       b0 = 0.997 * b0 + w * 0.0555179;
       b1 = 0.985 * b1 + w * 0.075;
       b2 = 0.93 * b2 + w * 0.12;
-      data[i] = b0 + b1 + b2 + w * 0.18;
+      data[i] = b0 + b1 + b2 + w * 0.22;
     }
 
     this.noiseSource = ctx.createBufferSource();
@@ -126,25 +125,26 @@ class EngineAudio {
     this.noiseSource.loop = true;
 
     this.noiseFilter = ctx.createBiquadFilter();
-    this.noiseFilter.type = "bandpass";
-    this.noiseFilter.frequency.value = 380;
-    this.noiseFilter.Q.value = 0.7;
+    this.noiseFilter.type = "lowpass";
+    this.noiseFilter.frequency.value = 450;
+    this.noiseFilter.Q.value = 1.0;
 
     this.noiseGain = ctx.createGain();
-    this.noiseGain.gain.value = 0.55;
+    this.noiseGain.gain.value = 0.65;
 
     this.noiseSource.connect(this.noiseFilter);
     this.noiseFilter.connect(this.noiseGain);
     this.noiseGain.connect(this.compressor);
 
-    // --- LFO vibrato ---
+    // --- LFO for asymmetric rumble jitter ---
     this.lfo = ctx.createOscillator();
-    this.lfo.frequency.value = 3.2;
+    this.lfo.frequency.value = 4.5;
     this.lfoGain = ctx.createGain();
-    this.lfoGain.gain.value = 6;
+    this.lfoGain.gain.value = 12;
     this.lfo.connect(this.lfoGain);
     if (this.whineOsc1) this.lfoGain.connect(this.whineOsc1.frequency);
-    if (this.whineOsc2) this.lfoGain.connect(this.whineOsc2.frequency);
+    if (this.noiseFilter) this.lfoGain.connect(this.noiseFilter.frequency);
+
 
     // Start
     this.subOsc.start();
