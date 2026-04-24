@@ -70,3 +70,26 @@ OpenNext 어댑터가 Windows에서 크래시함. 로컬 `npm run cf:build` 시 
 
 ### Vercel 관계
 Vercel 배포(`aether-tactical.vercel.app`)는 병행 유지.
+
+---
+
+## BGM 생성: Google Lyria
+
+`scripts/generate-bgm.mjs`가 `@google/genai` SDK로 Lyria 모델을 호출한다.
+
+### 준비
+`.env.local`에 `GOOGLE_GENAI_API_KEY` (https://aistudio.google.com/apikey 에서 발급).
+
+### 호출
+```bash
+# 30초 짧은 배경
+node scripts/generate-bgm.mjs -p "120bpm dark cyberpunk synth arpeggio, tense" -o tension-ambient -c menu
+
+# 수 분 길이 (전투 테마)
+node scripts/generate-bgm.mjs -p "160bpm electronic war, orchestral hit" -o electronic-war -c combat -m pro
+```
+
+- 출력: `public/audio/bgm/{category}/{output}.mp3`
+- 생성 후 [lib/audio.ts](lib/audio.ts) `BGM_POOL` 배열에 수동으로 추가해야 재생됨.
+- 프롬프트 규칙: 음악적 속성만 (bpm/악기/무드). **뮤지션 이름 금지** (저작권).
+- 결과는 비결정적 — 같은 프롬프트도 매번 다름.
