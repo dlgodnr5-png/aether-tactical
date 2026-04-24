@@ -1,0 +1,17 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "asia-northeast3",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Aether Tactical",
+        "supportEmail": "dlgodnr5@gmail.com"
+      }
+    }
+  }
+}

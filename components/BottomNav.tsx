@@ -9,8 +9,8 @@ const TABS: { label: string; href: string; icon: string }[] = [
   { label: "COMMAND", href: "/", icon: "hub" },
   { label: "FLEET", href: "/fleet", icon: "flight" },
   { label: "FUEL", href: "/exchange", icon: "local_gas_station" },
-  { label: "FLIGHT", href: "/flight", icon: "rocket_launch" },
   { label: "TARGET", href: "/targets", icon: "my_location" },
+  { label: "RANKING", href: "/leaderboard", icon: "leaderboard" },
 ];
 
 export default function BottomNav() {

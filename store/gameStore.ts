@@ -47,6 +47,9 @@ export interface GameState {
   currentTierKm: number | null;
   lastResult: MissionResult | null;
 
+  // User state
+  user: { uid: string; email: string | null } | null;
+
   // Actions
   addCredits: (n: number) => void;
   addFuel: (n: number) => void;
@@ -59,6 +62,7 @@ export interface GameState {
   resetMission: () => void;
   setTierKm: (km: number | null) => void;
   setResult: (r: MissionResult | null) => void;
+  setUser: (u: { uid: string; email: string | null } | null) => void;
 }
 
 const PHASE_ORDER: GamePhase[] = [
@@ -75,6 +79,7 @@ export const useGameStore = create<GameState>((set) => ({
   phase: "menu",
   currentTierKm: null,
   lastResult: null,
+  user: null,
 
   addCredits: (n) =>
     set((s) => ({ credits: Math.max(0, s.credits + n) })),
@@ -101,4 +106,5 @@ export const useGameStore = create<GameState>((set) => ({
     })),
   setTierKm: (km) => set(() => ({ currentTierKm: km })),
   setResult: (r) => set(() => ({ lastResult: r })),
+  setUser: (u) => set(() => ({ user: u })),
 }));

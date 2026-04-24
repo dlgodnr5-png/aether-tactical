@@ -3,6 +3,7 @@ import "./globals.css";
 import TopBar from "@/components/TopBar";
 import BottomNav from "@/components/BottomNav";
 import AmbientLayer from "@/components/fx/AmbientLayer";
+import AuthProvider from "@/components/AuthProvider";
 
 export const metadata: Metadata = {
   title: "Aether Tactical",
@@ -34,10 +35,12 @@ export default function RootLayout({
         />
       </head>
       <body className="relative min-h-full bg-background text-on-surface font-body">
-        <AmbientLayer />
-        <TopBar />
-        <main className="relative z-10 min-h-screen">{children}</main>
-        <BottomNav />
+        <AuthProvider>
+          <AmbientLayer />
+          <TopBar />
+          <main className="relative z-10 min-h-screen">{children}</main>
+          <BottomNav />
+        </AuthProvider>
       </body>
     </html>
   );
