@@ -1,0 +1,36 @@
+/**
+ * Cloudflare Workers deployment config for aether-tactical.
+ * Deployed via OpenNext adapter (@opennextjs/cloudflare).
+ *
+ * Commands:
+ *   npm run cf:build    → build Next.js + OpenNext bundle
+ *   npm run cf:preview  → local preview on wrangler
+ *   npm run cf:deploy   → deploy to Cloudflare Workers
+ *
+ * One-time setup:
+ *   npx wrangler login
+ *   npm run cf:build && npm run cf:deploy
+ *
+ * Runtime secrets (set once via CLI, never committed):
+ *   npx wrangler secret put STRIPE_SECRET_KEY
+ *   npx wrangler secret put STRIPE_WEBHOOK_SECRET
+ *
+ * NEXT_PUBLIC_* vars are bundled at BUILD time from local .env.local,
+ * so they don't need to be declared here.
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aether-tactical",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-04-20",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".open-next/assets"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}

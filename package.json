@@ -7,7 +7,10 @@
     "build": "npm run copy-cesium && next build",
     "start": "next start",
     "postinstall": "node scripts/copy-cesium-assets.mjs",
-    "copy-cesium": "node scripts/copy-cesium-assets.mjs"
+    "copy-cesium": "node scripts/copy-cesium-assets.mjs",
+    "cf:build": "opennextjs-cloudflare build",
+    "cf:preview": "opennextjs-cloudflare preview",
+    "cf:deploy": "opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.6",
@@ -26,6 +29,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.19.4",
     "@tailwindcss/postcss": "^4",
     "@types/animejs": "^3.1.12",
     "@types/node": "^20",
@@ -33,6 +37,7 @@
     "@types/react-dom": "^19",
     "@types/three": "^0.172.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.85.0"
   }
 }
