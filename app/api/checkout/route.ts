@@ -59,8 +59,8 @@ export async function POST(req: NextRequest) {
             : { price_data: lineItem.priceData! }),
         },
       ],
-      success_url: appUrl(`/exchange?checkout=success&tier=${tier.usd}`),
-      cancel_url: appUrl(`/exchange?checkout=cancel`),
+      success_url: appUrl(`/exchange?checkout=success&tier=${tier.usd}`, req.nextUrl.origin),
+      cancel_url: appUrl(`/exchange?checkout=cancel`, req.nextUrl.origin),
       metadata: {
         tierUsd: String(tier.usd),
         tierKm: String(tier.rangeKm),

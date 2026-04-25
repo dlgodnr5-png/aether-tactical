@@ -65,7 +65,19 @@ export function getTierByUsd(usd: number): Tier | undefined {
   return TIERS.find((t) => t.usd === usd);
 }
 
-export function appUrl(path: string = ""): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+/**
+ * Build absolute app URL for redirects (Stripe success/cancel).
+ *
+ * Priority:
+ *   1. `origin` arg (usually `req.nextUrl.origin`) — auto-detects the actual host
+ *      the user came from (aether.happygold.shop, aether-tactical.vercel.app, localhost…).
+ *   2. `NEXT_PUBLIC_APP_URL` env — manual override.
+ *   3. `http://localhost:3000` — last-resort dev fallback.
+ *
+ * 이중(Vercel + 추후 Cloudflare) 또는 커스텀 도메인 환경에서 결제 후 localhost로 튀지 않도록
+ * 가능하면 반드시 `req.nextUrl.origin`을 넘길 것.
+ */
+export function appUrl(path: string = "", origin?: string): string {
+  const base = origin || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   return base.replace(/\/$/, "") + path;
 }
