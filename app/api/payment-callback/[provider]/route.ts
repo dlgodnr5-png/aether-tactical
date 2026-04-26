@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { tierById } from "@/lib/tiers";
 import { confirmTossPayment } from "@/lib/payments/providers/toss";
+import { applyPurchase, loadCheckoutSession, deleteCheckoutSession } from "@/lib/grants";
 
 export const runtime = "nodejs";
 
@@ -66,6 +67,28 @@ function successRedirect(req: NextRequest, product: string, provider: string) {
   return res;
 }
 
+/** 임시 세션 → grants 영속화 (Upstash 또는 memStore). */
+async function persistGrant(args: {
+  idempotencyKey: string;
+  product: "unlimited" | "missile_pack";
+  provider: "stripe" | "paypal" | "toss";
+  paymentId: string;
+  amountCents: number;
+}) {
+  const session = await loadCheckoutSession(args.idempotencyKey);
+  if (!session?.email) return; // 로그인 없이 도착한 callback — grant 영속화 불가 (cookie 만으로는 단말 한정)
+  const tier = tierById("unlimited");
+  await applyPurchase({
+    email: session.email,
+    product: args.product,
+    provider: args.provider,
+    paymentId: args.paymentId,
+    amountCents: args.amountCents,
+    unlimitedRangeKm: tier?.rangeKm ?? 99999,
+  });
+  await deleteCheckoutSession(args.idempotencyKey);
+}
+
 function failRedirect(req: NextRequest, provider: string, reason: string) {
   const url = new URL(`/exchange?checkout=cancel&provider=${provider}&reason=${encodeURIComponent(reason)}`, req.nextUrl.origin);
   return NextResponse.redirect(url);
@@ -79,6 +102,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
     return failRedirect(req, provider, "invalid_product");
   }
 
+  const idempotencyKey = sp.get("key") ?? "";
+
   if (provider === "paypal") {
     const orderId = sp.get("token");
     if (!orderId) return failRedirect(req, "paypal", "missing_token");
@@ -91,6 +116,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
     if (!captureRes.ok) {
       const errText = await captureRes.text();
       return failRedirect(req, "paypal", `capture_${captureRes.status}_${errText.slice(0, 80)}`);
+    }
+    if (idempotencyKey) {
+      await persistGrant({
+        idempotencyKey, product, provider: "paypal",
+        paymentId: orderId, amountCents: 100,
+      });
     }
     return successRedirect(req, product, "paypal");
   }
@@ -109,6 +140,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
     const result = await confirmTossPayment({ paymentKey, orderId, amount });
     if (!result.ok) {
       return failRedirect(req, "toss", `confirm_${(result.error ?? "").slice(0, 80)}`);
+    }
+    if (idempotencyKey) {
+      await persistGrant({
+        idempotencyKey, product, provider: "toss",
+        paymentId: paymentKey, amountCents: 100,
+      });
     }
     return successRedirect(req, product, "toss");
   }

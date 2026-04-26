@@ -1,27 +1,37 @@
 "use client";
 
+/**
+ * NextAuth.js v5 SessionProvider + gameStore 동기화.
+ *
+ * 기존 Firebase auth 를 NextAuth 로 교체.
+ * useSession() 의 status/data 변화를 gameStore.user 에 반영해서
+ * 다른 컴포넌트들이 기존처럼 useGameStore((s) => s.user) 로 접근 가능.
+ */
+
 import { useEffect } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { SessionProvider, useSession } from "next-auth/react";
 import { useGameStore } from "@/store/gameStore";
 
-export default function AuthProvider({ children }: { children: React.ReactNode }) {
+function GameStoreSync() {
+  const { data: session, status } = useSession();
   const setUser = useGameStore((s) => s.setUser);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setUser({
-          uid: user.uid,
-          email: user.email,
-        });
-      } else {
-        setUser(null);
-      }
-    });
+    if (status === "authenticated" && session?.user?.email) {
+      setUser({ uid: session.user.email, email: session.user.email });
+    } else if (status === "unauthenticated") {
+      setUser(null);
+    }
+  }, [status, session, setUser]);
 
-    return () => unsubscribe();
-  }, [setUser]);
+  return null;
+}
 
-  return <>{children}</>;
+export default function AuthProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <SessionProvider>
+      <GameStoreSync />
+      {children}
+    </SessionProvider>
+  );
 }

@@ -29,7 +29,23 @@ const PAYPAL_BASE = PAYPAL_MODE === "live"
 
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID || "";
 const PAYPAL_SECRET = process.env.PAYPAL_SECRET || "";
-const PAYPAL_WEBHOOK_ID = process.env.PAYPAL_WEBHOOK_ID || "";
+
+/**
+ * 다중 webhook ID 지원 — 도메인별 (Vercel / Cloudflare custom domain) 다른 webhook 등록 시.
+ * 우선순위:
+ *   1. PAYPAL_WEBHOOK_IDS (콤마 구분 다중)
+ *   2. PAYPAL_WEBHOOK_ID  (단일, 레거시)
+ * 검증은 등록된 ID 중 하나라도 SUCCESS 면 통과.
+ */
+function getWebhookIds(): string[] {
+  const multi = (process.env.PAYPAL_WEBHOOK_IDS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (multi.length > 0) return multi;
+  const single = (process.env.PAYPAL_WEBHOOK_ID || "").trim();
+  return single ? [single] : [];
+}
 
 const PRODUCT_LABELS = {
   unlimited: { name: "Aether Tactical UNLIMITED", description: "무한 반경 + 미사일 100발" },
@@ -138,28 +154,33 @@ export const paypalProvider: PaymentProvider = {
   },
 
   async verifyWebhook(rawBody: string, headers: Headers): Promise<boolean> {
-    if (!PAYPAL_WEBHOOK_ID) {
-      // Sandbox 개발 단계에선 검증 없이 통과 (LEARNING-LOG: webhook 미설정 시 dev 차단)
+    const webhookIds = getWebhookIds();
+    if (webhookIds.length === 0) {
+      // Sandbox 개발 단계 webhook 미설정 시 통과 (prod 차단)
       return process.env.NODE_ENV !== "production";
     }
     try {
       const token = await getAccessToken();
-      const verifyRes = await fetch(`${PAYPAL_BASE}/v1/notifications/verify-webhook-signature`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          auth_algo: headers.get("paypal-auth-algo"),
-          cert_url: headers.get("paypal-cert-url"),
-          transmission_id: headers.get("paypal-transmission-id"),
-          transmission_sig: headers.get("paypal-transmission-sig"),
-          transmission_time: headers.get("paypal-transmission-time"),
-          webhook_id: PAYPAL_WEBHOOK_ID,
-          webhook_event: JSON.parse(rawBody),
-        }),
-      });
-      if (!verifyRes.ok) return false;
-      const data = await verifyRes.json() as { verification_status: string };
-      return data.verification_status === "SUCCESS";
+      const eventBody = JSON.parse(rawBody);
+      const baseHeaders = {
+        auth_algo: headers.get("paypal-auth-algo"),
+        cert_url: headers.get("paypal-cert-url"),
+        transmission_id: headers.get("paypal-transmission-id"),
+        transmission_sig: headers.get("paypal-transmission-sig"),
+        transmission_time: headers.get("paypal-transmission-time"),
+      };
+      // 등록된 ID 중 하나라도 통과하면 OK (Vercel / 커스텀 도메인 webhook 두 개 등록 시)
+      for (const webhook_id of webhookIds) {
+        const verifyRes = await fetch(`${PAYPAL_BASE}/v1/notifications/verify-webhook-signature`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ ...baseHeaders, webhook_id, webhook_event: eventBody }),
+        });
+        if (!verifyRes.ok) continue;
+        const data = await verifyRes.json() as { verification_status: string };
+        if (data.verification_status === "SUCCESS") return true;
+      }
+      return false;
     } catch {
       return false;
     }

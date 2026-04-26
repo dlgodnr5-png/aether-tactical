@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { signIn, useSession } from "next-auth/react";
 import { useTierStore } from "@/store/slices/tierSlice";
 import { useMissilesStore, MISSILE_LOW_THRESHOLD } from "@/store/slices/missilesSlice";
 import { TIERS, activeTier, formatAltitudeKm, formatRangeKm, type Tier } from "@/lib/tiers";
@@ -63,6 +64,9 @@ export default function ExchangePage() {
 }
 
 function ExchangeInner() {
+  const { data: session, status: authStatus } = useSession();
+  const isAuthed = authStatus === "authenticated" && !!session?.user?.email;
+
   const unlockedKm = useTierStore((s) => s.unlockedKm);
   const unlockTier = useTierStore((s) => s.unlockTier);
 
@@ -82,6 +86,28 @@ function ExchangeInner() {
     setProvider(detectDefaultProvider());
     bootTimeline([headerRef.current, statusRef.current, tiersRef.current]);
   }, []);
+
+  // 로그인 시 — 서버 grant 로드 → store 동기화 (다른 기기에서 산 미사일 복원)
+  useEffect(() => {
+    if (!isAuthed) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/me/grants", { cache: "no-store" });
+        if (!res.ok) return;
+        const grants = await res.json() as { tier: string; unlockedKm: number; missiles: number };
+        if (cancelled) return;
+        if (Number.isFinite(grants.unlockedKm) && grants.unlockedKm > 0) {
+          unlockTier(grants.unlockedKm);
+        }
+        if (Number.isFinite(grants.missiles)) {
+          // 서버가 truth — 클라 store 덮어쓰기
+          useMissilesStore.setState({ count: grants.missiles });
+        }
+      } catch { /* offline / no upstash — 클라 store fallback */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthed, unlockTier]);
 
   // 결제 후 redirect 처리 — cookie + query 동기화
   useEffect(() => {
@@ -129,6 +155,14 @@ function ExchangeInner() {
   }, [searchParams, router, unlockTier]);
 
   const startCheckout = async (product: "unlimited" | "missile_pack", pendingKey: string) => {
+    if (!isAuthed) {
+      setBanner({
+        kind: "err",
+        text: "❗ 결제 전 Google 로그인 필요 — 구매 영구 보존을 위해. 자동 이동…",
+      });
+      setTimeout(() => signIn("google", { callbackUrl: window.location.href }), 1200);
+      return;
+    }
     setPending(pendingKey);
     setBanner(null);
     try {
@@ -138,6 +172,11 @@ function ExchangeInner() {
         body: JSON.stringify({ product, provider }),
       });
       const data = await res.json();
+      if (res.status === 401) {
+        setBanner({ kind: "err", text: "세션 만료 — 다시 로그인" });
+        signIn("google", { callbackUrl: window.location.href });
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "결제 세션 생성 실패");
 
       // 분기 1: 일반 redirect (Stripe / PayPal)
@@ -181,6 +220,10 @@ function ExchangeInner() {
 
   const reloadMissiles = () => startCheckout("missile_pack", "missile_pack");
 
+  const isUnlimited = currentTier.id === "unlimited";
+  const upgradeTiers = TIERS.filter((t) => t.rangeKm > currentTier.rangeKm);
+  const showProviderTabs = !isUnlimited || true; // 항상 (충전 시 필요)
+
   return (
     <div className="relative pt-20 pb-28 min-h-screen">
       <div className="relative mx-auto max-w-3xl px-4 space-y-5">
@@ -208,99 +251,106 @@ function ExchangeInner() {
           </div>
         )}
 
-        {/* Provider 선택 */}
-        <ProviderTabs current={provider} onChange={setProvider} />
+        {!isAuthed && authStatus !== "loading" && (
+          <GlassCard glow="orange">
+            <div className="p-4 flex items-center gap-3">
+              <span className="text-2xl">🔐</span>
+              <div className="flex-1">
+                <p className="font-headline text-sm text-amber-300">
+                  Google 로그인 필요
+                </p>
+                <p className="font-label text-[11px] text-on-surface-variant mt-0.5">
+                  구매한 미사일 / UNLIMITED 가 다른 기기·세션에서도 유지되려면 로그인하세요
+                </p>
+              </div>
+              <MagneticButton
+                onClick={() => signIn("google", { callbackUrl: window.location.href })}
+                tone="cyan"
+                className="rounded-lg px-4 py-2 text-xs"
+              >
+                Google 로그인
+              </MagneticButton>
+            </div>
+          </GlassCard>
+        )}
 
-        {/* Current tier */}
+        {/* Current tier — UNLIMITED 시 더 prominent */}
         <section ref={statusRef}>
-          <GlassCard glow="none">
+          <GlassCard glow={isUnlimited ? "cyan" : "none"}>
             <div className="p-4">
-              <p className="font-label text-[10px] tracking-[0.3em] text-on-surface-variant">
-                ACTIVE TIER
+              <p className="font-label text-[10px] tracking-[0.3em] text-cyan-400">
+                {isUnlimited ? "✓ ACTIVE — UNLIMITED" : "ACTIVE TIER"}
               </p>
               <div className="mt-2 flex items-baseline justify-between">
-                <span className="font-headline text-2xl font-semibold text-lime-400">
+                <span className={`font-headline text-2xl font-semibold ${isUnlimited ? "text-cyan-300" : "text-lime-400"}`}>
                   {currentTier.label}
                 </span>
                 <div className="flex items-baseline gap-3 font-label text-xs tabular-nums">
                   <span className="text-on-surface-variant">고도</span>
-                  <span className="text-lime-300">{formatAltitudeKm(currentTier.altitudeKm)}</span>
+                  <span className={isUnlimited ? "text-cyan-300" : "text-lime-300"}>{formatAltitudeKm(currentTier.altitudeKm)}</span>
                   <span className="text-on-surface-variant">/ 반경</span>
-                  <span className="text-lime-300">{formatRangeKm(currentTier.rangeKm)}</span>
+                  <span className={isUnlimited ? "text-cyan-300" : "text-lime-300"}>{formatRangeKm(currentTier.rangeKm)}</span>
                 </div>
               </div>
-              <p className="mt-1 font-label text-[11px] text-on-surface-variant">
+              <p className="mt-2 font-label text-[11px] text-on-surface-variant">
                 {currentTier.description}
               </p>
             </div>
           </GlassCard>
         </section>
 
-        {/* Tiers */}
-        <section ref={tiersRef} className="space-y-3">
-          {TIERS.map((tier) => {
-            const isActive = tier.rangeKm === currentTier.rangeKm;
-            const isUpgrade = tier.rangeKm > currentTier.rangeKm;
-            const isPending = pending === tier.id;
-            return (
-              <GlassCard
-                key={tier.id}
-                tilt={!isActive}
-                glow={tier.id === "unlimited" ? "cyan" : "none"}
-              >
-                <div className="relative p-4">
-                  {tier.id === "unlimited" && (
+        {/* Provider 선택 — 충전 또는 업그레이드 결제용 */}
+        {showProviderTabs && <ProviderTabs current={provider} onChange={setProvider} />}
+
+        {/* 업그레이드 카드 — UNLIMITED 시 표시 안 함 */}
+        {upgradeTiers.length > 0 && (
+          <section ref={tiersRef} className="space-y-3">
+            <p className="font-label text-[10px] tracking-[0.3em] text-on-surface-variant pl-1">
+              UPGRADE
+            </p>
+            {upgradeTiers.map((tier) => {
+              const isPending = pending === tier.id;
+              return (
+                <GlassCard key={tier.id} tilt glow="cyan">
+                  <div className="relative p-4">
                     <span className="absolute -top-2 right-3 px-2 py-0.5 rounded-sm bg-cyan-400 text-[10px] tracking-[0.3em] font-label font-bold text-[#00363a] shadow-[0_0_12px_rgba(0,219,231,0.6)]">
                       RECOMMENDED
                     </span>
-                  )}
-                  {isActive && (
-                    <span className="absolute -top-2 left-3 px-2 py-0.5 rounded-sm bg-lime-400 text-[10px] tracking-[0.3em] font-label font-bold text-[#052a0e]">
-                      ACTIVE
-                    </span>
-                  )}
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-lg border border-cyan-400/40 bg-surface-container-lowest flex flex-col items-center justify-center">
-                      <span className="font-headline text-sm font-bold text-cyan-300 tabular-nums leading-none">
-                        {formatRangeKm(tier.rangeKm).replace(" km", "")}
-                      </span>
-                      <span className="font-label text-[8px] tracking-[0.2em] text-on-surface-variant mt-0.5">
-                        KM
-                      </span>
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-lg border border-cyan-400/40 bg-surface-container-lowest flex flex-col items-center justify-center">
+                        <span className="font-headline text-lg font-bold text-cyan-300 tabular-nums leading-none">
+                          ∞
+                        </span>
+                        <span className="font-label text-[8px] tracking-[0.2em] text-on-surface-variant mt-0.5">
+                          KM
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-headline text-lg text-on-surface font-semibold">
+                          {tier.label}
+                        </p>
+                        <p className="font-label text-[11px] tracking-[0.2em] text-on-surface-variant">
+                          무한 반경 · 무한 미션
+                        </p>
+                        <p className="font-label text-[10px] text-on-surface-variant mt-0.5">
+                          포탄 {tier.initialMissiles}발 + 추가 충전 \$1/100발
+                        </p>
+                      </div>
+                      <MagneticButton
+                        onClick={() => purchase(tier)}
+                        disabled={isPending}
+                        tone="cyan"
+                        className="rounded-lg px-4 py-2 text-xs"
+                      >
+                        {isPending ? "로딩..." : `\$${tier.usd}`}
+                      </MagneticButton>
                     </div>
-                    <div className="flex-1">
-                      <p className="font-headline text-lg text-on-surface font-semibold">
-                        {tier.label}
-                      </p>
-                      <p className="font-label text-[11px] tracking-[0.2em] text-on-surface-variant">
-                        고도 {formatAltitudeKm(tier.altitudeKm)} · 반경 {formatRangeKm(tier.rangeKm)}
-                      </p>
-                      <p className="font-label text-[10px] text-on-surface-variant mt-0.5">
-                        포탄 {tier.initialMissiles}발 {tier.id === "unlimited" ? "+ \$1/100발 충전" : ""}
-                      </p>
-                    </div>
-                    <MagneticButton
-                      onClick={() => purchase(tier)}
-                      disabled={isActive || isPending || !isUpgrade}
-                      tone={tier.id === "unlimited" ? "cyan" : "ghost"}
-                      className={`rounded-lg px-4 py-2 text-xs ${
-                        isActive || !isUpgrade ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
-                    >
-                      {isActive
-                        ? "현재"
-                        : isPending
-                          ? "로딩..."
-                          : tier.usd === 0
-                            ? "FREE"
-                            : `\$${tier.usd}`}
-                    </MagneticButton>
                   </div>
-                </div>
-              </GlassCard>
-            );
-          })}
-        </section>
+                </GlassCard>
+              );
+            })}
+          </section>
+        )}
 
         {/* 미사일 잔량 + Reload */}
         <MissileReloadCard onReload={reloadMissiles} pending={pending === "missile_pack"} />
@@ -352,9 +402,10 @@ function ProviderTabs({ current, onChange }: { current: ProviderName; onChange: 
 /** 미사일 잔량 + 100발 충전 CTA */
 function MissileReloadCard({ onReload, pending }: { onReload: () => void; pending: boolean }) {
   const count = useMissilesStore((s) => s.count);
-  const max = useMissilesStore((s) => s.max);
   const isLow = count <= MISSILE_LOW_THRESHOLD;
   const isCritical = count <= 1;
+
+  const tone = isCritical ? "text-red-400 animate-pulse" : isLow ? "text-amber-400" : "text-lime-300";
 
   return (
     <GlassCard glow={isCritical ? "orange" : "none"}>
@@ -364,11 +415,11 @@ function MissileReloadCard({ onReload, pending }: { onReload: () => void; pendin
           <p className="font-label text-[10px] tracking-[0.3em] text-on-surface-variant">
             MISSILES
           </p>
-          <div className="flex items-baseline gap-2">
-            <span className={`font-headline text-2xl tabular-nums ${isCritical ? "text-red-400 animate-pulse" : isLow ? "text-amber-400" : "text-lime-300"}`}>
+          <div className="flex items-baseline gap-2 mt-0.5">
+            <span className={`font-headline text-3xl tabular-nums ${tone}`}>
               {count}
             </span>
-            <span className="text-on-surface-variant text-sm">/ {max}</span>
+            <span className="text-on-surface-variant text-sm">발</span>
           </div>
           {isLow && (
             <p className="font-label text-[10px] text-amber-400 mt-1">

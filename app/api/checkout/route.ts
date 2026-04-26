@@ -28,6 +28,8 @@ import type {
   PaymentProviderName,
   ProductKind,
 } from "@/lib/payments/provider-interface";
+import { auth } from "@/auth";
+import { saveCheckoutSession } from "@/lib/grants";
 
 export const runtime = "nodejs";
 
@@ -40,6 +42,15 @@ interface CheckoutBody {
 }
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  const email = session?.user?.email;
+  if (!email) {
+    return NextResponse.json(
+      { error: "login_required", message: "결제 전 Google 로그인 필요 (구매 영구 보존)" },
+      { status: 401 },
+    );
+  }
+
   let body: CheckoutBody;
   try {
     body = await req.json();
@@ -68,6 +79,13 @@ export async function POST(req: NextRequest) {
   const provider = getProvider(requestedProvider);
 
   const idempotencyKey = body.idempotencyKey || randomUUID();
+
+  // 결제 메타 임시 저장 (callback/webhook 에서 user 식별용)
+  await saveCheckoutSession(idempotencyKey, {
+    email,
+    product,
+    provider: requestedProvider,
+  });
 
   const result = await provider.createPayment({
     product,
