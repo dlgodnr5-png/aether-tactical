@@ -1,17 +1,19 @@
 /**
- * Distance tier map — maps USD price to max altitude + max range.
- * Per user spec (2026-04-22 update):
- *   - Free : altitude 5km   · range 5km     (local training only)
- *   - $1   : altitude 10km  · range 5,000km  (continental)
- *   - $5   : altitude 50km  · range 10,000km (hemisphere)
- *   - $10  : altitude ∞     · range ∞        (global, unlimited)
+ * Distance tier map — 2026-04-25 단일화: FREE / $1 UNLIMITED.
+ * 포탄(미사일)은 별도 micro-purchase ($1/100발) — `missilesSlice` 참고.
+ *
+ * 이전 4-tier ($0/$1/$5/$10) 는 deprecated. 사용자 결정으로 단순화 →
+ * 결정 부담 ↓ → 전환률 ↑. 매출 hook 은 미사일 reload 모달.
  *
  * `rangeKm` drives reachable-target filtering on the Cesium globe.
  * `altitudeKm` caps the flight ceiling in MissionScene.
- * Use `INFINITE_KM` sentinel for the unlimited tier.
  */
 
 export const INFINITE_KM = 99_999; // sentinel — treated as unlimited in UI/logic
+
+export const FREE_MISSILES = 5;     // 무료 미션당 포탄
+export const PAID_MISSILES_INITIAL = 100;  // $1 결제 시 초기 포탄
+export const MISSILE_PACK_COUNT = 100;     // reload pack: $1 / 100발
 
 export interface Tier {
   id: string;
@@ -20,6 +22,7 @@ export interface Tier {
   usd: number;
   label: string;
   description: string;
+  initialMissiles: number;
 }
 
 export const TIERS: Tier[] = [
@@ -28,32 +31,18 @@ export const TIERS: Tier[] = [
     rangeKm: 5,
     altitudeKm: 5,
     usd: 0,
-    label: "SCOUT",
-    description: "무료 — 고도 5km · 반경 5km (훈련 모드)",
+    label: "FREE",
+    description: "무료 — 5km 반경 · 미사일 5발",
+    initialMissiles: FREE_MISSILES,
   },
   {
-    id: "t1",
-    rangeKm: 5_000,
-    altitudeKm: 10,
-    usd: 1,
-    label: "RECON",
-    description: "$1 — 고도 10km · 반경 5,000km (대륙)",
-  },
-  {
-    id: "t5",
-    rangeKm: 10_000,
-    altitudeKm: 50,
-    usd: 5,
-    label: "TACTICAL",
-    description: "$5 — 고도 50km · 반경 10,000km (반구)",
-  },
-  {
-    id: "t10",
+    id: "unlimited",
     rangeKm: INFINITE_KM,
     altitudeKm: INFINITE_KM,
-    usd: 10,
-    label: "STRATEGIC",
-    description: "$10 — 고도 · 반경 무제한 (글로벌)",
+    usd: 1,
+    label: "UNLIMITED",
+    description: "$1 — 무한 반경 · 무한 미션 + 미사일 100발 (이후 100발 / $1 충전)",
+    initialMissiles: PAID_MISSILES_INITIAL,
   },
 ];
 
@@ -93,6 +82,17 @@ export function activeTier(unlockedKm: number): Tier {
   return [...TIERS]
     .reverse()
     .find((t) => unlockedKm >= t.rangeKm) ?? TIERS[0];
+}
+
+/** Convenience: 결제 완료 여부 (FREE 가 아니면 unlimited 로 간주). */
+export function isPaidTier(unlockedKm: number): boolean {
+  return unlockedKm >= INFINITE_KM;
+}
+
+/** legacy 4-tier 식별자(t1/t5/t10) 를 신규 unlimited 로 매핑. */
+export function migrateLegacyTierId(id: string): string {
+  if (id === "t1" || id === "t5" || id === "t10") return "unlimited";
+  return id;
 }
 
 /** Distance in km between two lat/lng points (Haversine, meters → km). */

@@ -2,12 +2,42 @@
 
 type SfxId = "nav" | "press" | "lock" | "boot";
 
-// 존재하는 BGM 파일만 포함. public/audio/bgm/menu, /combat, /cinematic 디렉터리는
-// 비어있어 풀에 등록하면 랜덤 선택 시 404 → play() 실패 → engaged가 조용히 false로 revert됨.
-// 새 BGM 파일을 드롭하면 이 배열에 경로 추가하는 방식으로 확장.
-const BGM_POOL = [
-  "/audio/bgm/cyber-news.mp3",
-];
+/**
+ * BGM 카테고리화 (2026-04-25 우주전 재배치).
+ * 페이즈별 자동 매핑. 빈 카테고리는 fallback 으로 전 풀 사용.
+ *
+ * 파일 추가:
+ *   1. scripts/generate-bgm-spacewar.mjs 실행 (Lyria 6트랙)
+ *   2. 결과 파일 경로를 해당 카테고리 배열에 push.
+ */
+const BGM_BY_PHASE: Record<string, string[]> = {
+  menu: [
+    "/audio/bgm/cyber-news.mp3",
+  ],
+  flight: [
+    "/audio/bgm/flight/epic-space-battle.mp3",
+    "/audio/bgm/flight/tense-ambient.mp3",
+  ],
+  strike: [
+    "/audio/bgm/strike/alien-combat.mp3",
+  ],
+  space: [
+    "/audio/bgm/space/interstellar-drama.mp3",
+    "/audio/bgm/space/space-opera.mp3",
+    "/audio/bgm/space/deep-space.mp3",
+  ],
+};
+
+/** Fallback flat pool — 카테고리 비었을 때, 또는 phase 미지정 시. */
+const BGM_POOL = Object.values(BGM_BY_PHASE).flat().filter((s) => s.length > 0);
+
+/** 페이즈별 BGM 한 곡 랜덤 선택 (해당 카테고리 비면 menu 폴백). */
+export function pickBGMForPhase(phase: string): string {
+  const pool = (BGM_BY_PHASE[phase] && BGM_BY_PHASE[phase].length > 0)
+    ? BGM_BY_PHASE[phase]
+    : BGM_BY_PHASE.menu;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
 const SFX_SRC: Record<SfxId, string> = {
   nav: "/audio/sfx/nav.mp3",
